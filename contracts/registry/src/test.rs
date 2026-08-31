@@ -9,7 +9,7 @@ use soroban_sdk::{
 fn setup_env() -> (Env, RegistryContractClient<'static>) {
     let env = Env::default();
     env.mock_all_auths();
-    let contract_id = env.register_contract(None, RegistryContract);
+    let contract_id = env.register(RegistryContract, ());
     let client = RegistryContractClient::new(&env, &contract_id);
     (env, client)
 }
@@ -33,7 +33,7 @@ fn test_double_initialize_panics() {
     let (env, client) = setup_env();
     let admin = Address::generate(&env);
     client.initialize(&admin);
-    client.initialize(&admin); // should panic
+    client.initialize(&admin);
 }
 
 #[test]
@@ -48,22 +48,18 @@ fn test_submit_and_lookup() {
     let source_commit = s(&env, "abc123def456");
     let build_args = s(&env, "cargo build --release --target wasm32v1-none");
 
-    let result = client.submit(
+    // submit returns () on success in the generated test client (panics on error)
+    client.submit(
         &submitter,
         &wasm_hash,
         &source_repo,
         &source_commit,
         &build_args,
     );
-    assert!(result.is_ok());
 
-    // Count incremented
     assert_eq!(client.count(), 1);
-
-    // is_verified returns true
     assert!(client.is_verified(&wasm_hash));
 
-    // get_verification returns the correct record
     let record = client.get_verification(&wasm_hash).unwrap();
     assert_eq!(record.wasm_hash, wasm_hash);
     assert_eq!(record.source_repo, source_repo);
@@ -118,7 +114,8 @@ fn test_submit_duplicate_returns_error() {
         &s(&env, "cargo build --release"),
     );
 
-    let result = client.submit(
+    // Use try_submit for error-path test — returns Result
+    let result = client.try_submit(
         &submitter,
         &wasm_hash,
         &s(&env, "https://github.com/example/repo"),
@@ -126,7 +123,10 @@ fn test_submit_duplicate_returns_error() {
         &s(&env, "cargo build --release"),
     );
 
-    assert_eq!(result, Err(RegistryError::AlreadyVerified));
+    assert_eq!(
+        result,
+        Err(Ok(RegistryError::AlreadyVerified))
+    );
 }
 
 #[test]
@@ -136,14 +136,14 @@ fn test_submit_empty_fields_returns_error() {
     let submitter = Address::generate(&env);
     client.initialize(&admin);
 
-    let result = client.submit(
+    let result = client.try_submit(
         &submitter,
         &s(&env, ""),
         &s(&env, "https://github.com/example/repo"),
         &s(&env, "abc123"),
         &s(&env, "cargo build --release"),
     );
-    assert_eq!(result, Err(RegistryError::InvalidInput));
+    assert_eq!(result, Err(Ok(RegistryError::InvalidInput)));
 }
 
 #[test]
@@ -164,9 +164,7 @@ fn test_revoke() {
     );
 
     assert!(client.is_verified(&wasm_hash));
-
-    let result = client.revoke(&wasm_hash);
-    assert!(result.is_ok());
+    client.revoke(&wasm_hash); // panics on error
     assert!(!client.is_verified(&wasm_hash));
     assert_eq!(client.count(), 0);
 }
@@ -177,11 +175,11 @@ fn test_revoke_nonexistent_returns_error() {
     let admin = Address::generate(&env);
     client.initialize(&admin);
 
-    let result = client.revoke(&s(
+    let result = client.try_revoke(&s(
         &env,
         "0000000000000000000000000000000000000000000000000000000000000000",
     ));
-    assert_eq!(result, Err(RegistryError::NotFound));
+    assert_eq!(result, Err(Ok(RegistryError::NotFound)));
 }
 
 #[test]
@@ -190,13 +188,10 @@ fn test_unverified_hash_returns_none() {
     let admin = Address::generate(&env);
     client.initialize(&admin);
 
-    let result = client.get_verification(&s(
+    let unknown = s(
         &env,
         "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
-    ));
-    assert!(result.is_none());
-    assert!(!client.is_verified(&s(
-        &env,
-        "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
-    )));
+    );
+    assert!(client.get_verification(&unknown).is_none());
+    assert!(!client.is_verified(&unknown));
 }

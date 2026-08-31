@@ -5,7 +5,7 @@
  * This component retrieves them and renders the function signatures.
  */
 
-import { contract, SorobanRpc } from "@stellar/stellar-sdk";
+import { contract } from "@stellar/stellar-sdk";
 
 interface Props {
   address: string;

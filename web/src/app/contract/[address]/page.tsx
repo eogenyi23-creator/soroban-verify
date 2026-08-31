@@ -2,7 +2,7 @@ import { VerificationBadge } from "@/components/VerificationBadge";
 import { ContractSpec } from "@/components/ContractSpec";
 import { getRegistryClient } from "@/lib/registry";
 import { resolveWasmHash } from "@soroban-verify/sdk";
-import { SorobanRpc } from "@stellar/stellar-sdk";
+import { rpc } from "@stellar/stellar-sdk";
 
 interface Props {
   params: { address: string };
@@ -18,7 +18,7 @@ export default async function ContractPage({ params }: Props) {
 
   try {
     const rpcUrl = process.env.STELLAR_RPC_URL ?? "https://soroban-testnet.stellar.org";
-    const server = new SorobanRpc.Server(rpcUrl, { allowHttp: false });
+    const server = new rpc.Server(rpcUrl, { allowHttp: false });
     wasmHash = await resolveWasmHash(address, server as any);
 
     const client = getRegistryClient(network);

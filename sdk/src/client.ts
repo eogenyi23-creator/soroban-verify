@@ -7,8 +7,7 @@
 
 import {
   Contract,
-  Networks,
-  SorobanRpc,
+  rpc,
   TransactionBuilder,
   BASE_FEE,
   xdr,
@@ -16,6 +15,7 @@ import {
   nativeToScVal,
   Keypair,
   Address,
+  Account,
 } from "@stellar/stellar-sdk";
 import type {
   NetworkConfig,
@@ -25,41 +25,20 @@ import type {
   SubmitResult,
 } from "./types.js";
 
-/**
- * Factory function that returns a typed client for the registry contract.
- *
- * @example
- * ```ts
- * const client = createRegistryClient({
- *   network: "testnet",
- *   rpcUrl: "https://soroban-testnet.stellar.org",
- *   networkPassphrase: Networks.TESTNET,
- *   registryContractId: "C...",
- * });
- * const result = await client.getVerification("6ddb...");
- * ```
- */
 export function createRegistryClient(config: NetworkConfig) {
-  const server = new SorobanRpc.Server(config.rpcUrl, { allowHttp: false });
-  const contract = new Contract(config.registryContractId);
+  const server = new rpc.Server(config.rpcUrl, { allowHttp: false });
+  const contractInst = new Contract(config.registryContractId);
 
-  /**
-   * Check whether a WASM hash has a verification record.
-   */
   async function isVerified(wasmHash: string): Promise<boolean> {
     const result = await simulateReadOnly(
-      contract.call("is_verified", nativeToScVal(wasmHash, { type: "string" }))
+      contractInst.call("is_verified", nativeToScVal(wasmHash, { type: "string" }))
     );
     return scValToNative(result) as boolean;
   }
 
-  /**
-   * Look up the full verification record for a WASM hash.
-   * Returns `{ verified: false, record: null }` if not found.
-   */
   async function getVerification(wasmHash: string): Promise<VerificationResult> {
     const result = await simulateReadOnly(
-      contract.call("get_verification", nativeToScVal(wasmHash, { type: "string" }))
+      contractInst.call("get_verification", nativeToScVal(wasmHash, { type: "string" }))
     );
     const native = scValToNative(result);
     if (native === null || native === undefined) {
@@ -71,44 +50,30 @@ export function createRegistryClient(config: NetworkConfig) {
     };
   }
 
-  /**
-   * Return all WASM hashes submitted by a given Stellar address.
-   */
   async function getBySubmitter(submitterAddress: string): Promise<string[]> {
     const result = await simulateReadOnly(
-      contract.call(
-        "get_by_submitter",
-        new Address(submitterAddress).toScVal()
-      )
+      contractInst.call("get_by_submitter", new Address(submitterAddress).toScVal())
     );
     return scValToNative(result) as string[];
   }
 
-  /**
-   * Return the total count of verified contracts.
-   */
   async function count(): Promise<number> {
-    const result = await simulateReadOnly(contract.call("count"));
+    const result = await simulateReadOnly(contractInst.call("count"));
     return scValToNative(result) as number;
   }
 
-  /**
-   * Submit a new source-verification record.
-   *
-   * Builds, simulates, signs and submits the transaction.
-   */
   async function submit(input: SubmitVerificationInput): Promise<SubmitResult> {
     const keypair = Keypair.fromSecret(input.signerSecretKey);
     const sourceAccount = await server.getAccount(keypair.publicKey());
-
-    const wasmHash = input.wasmHash ?? (await resolveWasmHash(input.contractAddress, server));
+    const wasmHash =
+      input.wasmHash ?? (await resolveWasmHash(input.contractAddress, server));
 
     const tx = new TransactionBuilder(sourceAccount, {
       fee: BASE_FEE,
       networkPassphrase: config.networkPassphrase,
     })
       .addOperation(
-        contract.call(
+        contractInst.call(
           "submit",
           new Address(keypair.publicKey()).toScVal(),
           nativeToScVal(wasmHash, { type: "string" }),
@@ -121,11 +86,11 @@ export function createRegistryClient(config: NetworkConfig) {
       .build();
 
     const simResult = await server.simulateTransaction(tx);
-    if (SorobanRpc.Api.isSimulationError(simResult)) {
+    if (rpc.Api.isSimulationError(simResult)) {
       throw new Error(`Simulation failed: ${simResult.error}`);
     }
 
-    const preparedTx = SorobanRpc.assembleTransaction(tx, simResult).build();
+    const preparedTx = rpc.assembleTransaction(tx, simResult).build();
     preparedTx.sign(keypair);
 
     const sendResult = await server.sendTransaction(preparedTx);
@@ -133,37 +98,18 @@ export function createRegistryClient(config: NetworkConfig) {
       throw new Error(`Transaction failed: ${sendResult.errorResult?.toXDR("base64")}`);
     }
 
-    // Poll for confirmation.
     const txHash = sendResult.hash;
-    let status = sendResult.status;
-    while (status === "PENDING" || status === "NOT_FOUND") {
+    while (true) {
       await sleep(2000);
       const poll = await server.getTransaction(txHash);
-      if (poll.status === "SUCCESS") {
-        return { success: true, txHash, wasmHash };
-      }
-      if (poll.status === "FAILED") {
-        throw new Error(`Transaction failed on-chain: ${txHash}`);
-      }
+      if (poll.status === "SUCCESS") return { success: true, txHash, wasmHash };
+      if (poll.status === "FAILED") throw new Error(`Transaction failed on-chain: ${txHash}`);
     }
-
-    return { success: true, txHash, wasmHash };
   }
 
-  // ─── Internal helpers ────────────────────────────────────────────────────
-
   async function simulateReadOnly(operation: xdr.Operation): Promise<xdr.ScVal> {
-    // Build a dummy source account for read-only simulation.
     const dummyKeypair = Keypair.random();
-    // Use friendbot to avoid needing a real account for reads.
-    const account = await server
-      .getAccount(dummyKeypair.publicKey())
-      .catch(() => {
-        // Fall back to a synthetic account object.
-        const { Account } = require("@stellar/stellar-sdk");
-        return new Account(dummyKeypair.publicKey(), "0");
-      });
-
+    const account = new Account(dummyKeypair.publicKey(), "0");
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,
       networkPassphrase: config.networkPassphrase,
@@ -173,11 +119,11 @@ export function createRegistryClient(config: NetworkConfig) {
       .build();
 
     const simResult = await server.simulateTransaction(tx);
-    if (SorobanRpc.Api.isSimulationError(simResult)) {
+    if (rpc.Api.isSimulationError(simResult)) {
       throw new Error(`Read simulation failed: ${simResult.error}`);
     }
-    const successResult = simResult as SorobanRpc.Api.SimulateTransactionSuccessResponse;
-    return successResult.result!.retval;
+    const success = simResult as rpc.Api.SimulateTransactionSuccessResponse;
+    return success.result!.retval;
   }
 
   function mapToRecord(raw: Record<string, unknown>): VerificationRecord {
@@ -198,12 +144,9 @@ export function createRegistryClient(config: NetworkConfig) {
   return { isVerified, getVerification, getBySubmitter, count, submit };
 }
 
-/**
- * Resolve the WASM hash for a given contract address via RPC.
- */
 export async function resolveWasmHash(
   contractAddress: string,
-  server: SorobanRpc.Server
+  server: rpc.Server
 ): Promise<string> {
   const ledgerKey = xdr.LedgerKey.contractData(
     new xdr.LedgerKeyContractData({
