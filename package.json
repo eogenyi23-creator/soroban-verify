@@ -1,0 +1,16 @@
+{
+  "name": "soroban-verify",
+  "version": "0.1.0",
+  "private": true,
+  "description": "On-chain source verification registry for Soroban smart contracts on Stellar",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test:ts": "pnpm -r test",
+    "test:rust": "cargo test",
+    "lint": "pnpm -r lint"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}

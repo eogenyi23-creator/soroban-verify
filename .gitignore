@@ -1,0 +1,24 @@
+# Rust
+target/
+Cargo.lock
+
+# Node
+node_modules/
+.next/
+dist/
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+*.wasm
+!contracts/**/*.wasm
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
