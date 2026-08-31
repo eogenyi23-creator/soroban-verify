@@ -1,6 +1,7 @@
 {
   "name": "@soroban-verify/cli",
   "version": "0.1.0",
+  "type": "module",
   "description": "CLI tool for submitting and checking Soroban contract source verifications",
   "bin": {
     "stellar-verify": "dist/index.js"
