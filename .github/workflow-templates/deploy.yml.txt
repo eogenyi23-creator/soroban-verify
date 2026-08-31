@@ -1,0 +1,82 @@
+name: Deploy Contract (Testnet)
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: "Network to deploy to"
+        required: true
+        default: "testnet"
+        type: choice
+        options:
+          - testnet
+          - mainnet
+
+jobs:
+  deploy:
+    name: Deploy Registry Contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: Cache Rust artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-deploy-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build WASM
+        run: cargo build --manifest-path contracts/registry/Cargo.toml --target wasm32v1-none --release
+
+      - name: Install Stellar CLI
+        run: |
+          curl -L https://github.com/stellar/stellar-cli/releases/latest/download/stellar-cli-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          sudo mv stellar /usr/local/bin/
+
+      - name: Configure Stellar identity
+        run: |
+          echo "${{ secrets.DEPLOYER_SECRET_KEY }}" | stellar keys add deployer --secret-key
+        env:
+          STELLAR_SECRET_KEY: ${{ secrets.DEPLOYER_SECRET_KEY }}
+
+      - name: Upload WASM
+        id: upload
+        run: |
+          WASM_HASH=$(stellar contract upload \
+            --network ${{ inputs.network }} \
+            --source deployer \
+            --wasm target/wasm32v1-none/release/soroban_verify_registry.wasm)
+          echo "wasm_hash=$WASM_HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy contract
+        id: deploy
+        run: |
+          CONTRACT_ID=$(stellar contract deploy \
+            --network ${{ inputs.network }} \
+            --source deployer \
+            --wasm-hash ${{ steps.upload.outputs.wasm_hash }})
+          echo "contract_id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Initialize contract
+        run: |
+          stellar contract invoke \
+            --network ${{ inputs.network }} \
+            --source deployer \
+            --id ${{ steps.deploy.outputs.contract_id }} \
+            -- initialize \
+            --admin $(stellar keys address deployer)
+
+      - name: Print deployment info
+        run: |
+          echo "✅ Registry contract deployed!"
+          echo "Network:     ${{ inputs.network }}"
+          echo "WASM hash:   ${{ steps.upload.outputs.wasm_hash }}"
+          echo "Contract ID: ${{ steps.deploy.outputs.contract_id }}"
