@@ -48,15 +48,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: "9"
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install SDK dependencies
+        run: pnpm install --no-frozen-lockfile
         working-directory: sdk
 
       - name: Build SDK
@@ -64,7 +64,7 @@ jobs:
         working-directory: sdk
 
       - name: Install CLI dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
         working-directory: cli
 
       - name: Build CLI
@@ -87,7 +87,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -95,7 +95,7 @@ jobs:
           version: "9"
 
       - name: Install SDK dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
         working-directory: sdk
 
       - name: Build SDK
@@ -103,7 +103,7 @@ jobs:
         working-directory: sdk
 
       - name: Install web dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
         working-directory: web
 
       - name: Lint

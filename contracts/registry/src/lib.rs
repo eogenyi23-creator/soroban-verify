@@ -17,7 +17,7 @@ mod types;
 mod test;
 
 use soroban_sdk::{
-    contract, contractimpl, contractmeta, log, symbol_short, vec, Address, Bytes, Env, String, Vec,
+    contract, contractimpl, contractmeta, symbol_short, vec, Address, Env, String, Vec,
 };
 use types::{DataKey, RegistryError, VerificationRecord};
 

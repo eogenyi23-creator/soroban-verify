@@ -2,8 +2,8 @@
 
 use super::*;
 use soroban_sdk::{
-    testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation},
-    Address, Env, IntoVal, String,
+    testutils::Address as _,
+    Address, Env, String,
 };
 
 fn setup_env() -> (Env, RegistryContractClient<'static>) {

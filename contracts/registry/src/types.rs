@@ -1,6 +1,6 @@
 //! Storage key definitions and data types for the soroban-verify registry contract.
 
-use soroban_sdk::{contracttype, Address, Bytes, String};
+use soroban_sdk::{contracttype, contracterror, Address, String};
 
 /// A single source-verification record stored on-chain.
 ///
@@ -42,9 +42,8 @@ pub mod events {
 }
 
 /// Errors returned by the registry contract.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[repr(u32)]
+#[contracterror]
+#[derive(Clone, Debug, Eq, PartialEq, Copy)]
 pub enum RegistryError {
     /// A verification for this WASM hash already exists.
     AlreadyVerified = 1,
