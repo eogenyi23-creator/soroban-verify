@@ -49,8 +49,6 @@ pub enum RegistryError {
     AlreadyVerified = 1,
     /// No verification exists for the given WASM hash.
     NotFound = 2,
-    /// Caller is not authorised to perform this action.
-    Unauthorized = 3,
     /// One or more required fields are empty.
-    InvalidInput = 4,
+    InvalidInput = 3,
 }

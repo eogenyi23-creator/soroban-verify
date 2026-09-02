@@ -49,6 +49,11 @@ impl RegistryContract {
     /// Can only be called once. The admin can revoke malicious or incorrect
     /// verifications.
     pub fn initialize(env: Env, admin: Address) {
+        // The claimed admin must sign this transaction, proving they consent
+        // to being set as admin. Without this, anyone could front-run the
+        // deployment and set an arbitrary address as admin.
+        admin.require_auth();
+
         if env.storage().instance().has(&DataKey::Admin) {
             panic!("already initialized");
         }
@@ -156,10 +161,10 @@ impl RegistryContract {
     /// Revoke a previously submitted verification record.
     ///
     /// Only the admin can call this. Used to remove incorrect or malicious records.
+    /// Non-admin callers are rejected by `require_auth()` (panics / auth error).
     ///
     /// # Errors
     ///
-    /// Returns `RegistryError::Unauthorized` if caller is not the admin.
     /// Returns `RegistryError::NotFound` if no record exists for `wasm_hash`.
     pub fn revoke(env: Env, wasm_hash: String) -> Result<(), RegistryError> {
         // Only the admin may revoke.

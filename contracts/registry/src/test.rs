@@ -27,6 +27,25 @@ fn test_initialize() {
     assert_eq!(client.count(), 0);
 }
 
+/// Verify that initialize() enforces admin consent via require_auth().
+///
+/// Uses `mock_auths` (not `mock_all_auths`) so we can deliberately omit the
+/// admin's signature and confirm the contract panics with an auth error.
+#[test]
+#[should_panic]
+fn test_initialize_requires_admin_auth() {
+    let env = Env::default();
+    // Deliberately do NOT call env.mock_all_auths() — no auth mocks at all.
+    // The contract calls admin.require_auth(), which will panic when no
+    // matching authorization is present.
+    let contract_id = env.register(RegistryContract, ());
+    let client = RegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    // This must panic because the admin has not authorized this call.
+    client.initialize(&admin);
+}
+
 #[test]
 #[should_panic(expected = "already initialized")]
 fn test_double_initialize_panics() {
