@@ -30,7 +30,7 @@ not** open a public GitHub issue. Instead:
 
 - Use GitHub's [private vulnerability reporting](../../security/advisories/new)
   feature on this repository, or
-- Email [INSERT YOUR CONTACT EMAIL] with details.
+- Email eogenyi23@gmail.com with details.
 
 Please include:
 - A description of the vulnerability and its potential impact
