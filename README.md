@@ -41,6 +41,49 @@ Anyone can then look up any contract address and see:
 - ✅ **Verified** — source repo, commit, and build args that reproduce the exact WASM
 - ❌ **Unverified** — WASM hash known, no source linked yet
 
+## Trust Model & Limitations
+
+**soroban-verify records claims — it does not cryptographically prove ownership.**
+
+### What the registry does guarantee
+- A verification record is an immutable, timestamped, on-chain claim: "address X
+  asserts that source repo Y at commit Z, built with args W, produces WASM hash H."
+- Anyone can independently confirm a claim by rebuilding the source themselves
+  (`stellar-verify check`) and comparing the resulting hash — the registry doesn't
+  ask you to trust it blindly.
+
+### What it does *not* guarantee
+Soroban's execution environment does not expose who deployed a given WASM hash —
+there is no on-chain API to look up a contract's deployer, and multiple contract
+instances can share a single WASM code entry, so "ownership" of a hash is not
+even a well-defined concept at the protocol level. This means:
+
+- **The registry cannot verify that a submitter actually deployed or controls
+  the contract behind the WASM hash they're submitting for.** Submissions are
+  first-come, first-served: whoever submits a hash first "wins," with no proof
+  of ownership required.
+- A malicious actor could theoretically front-run a legitimate developer by
+  submitting a fake source/commit pairing for a hash before the real developer
+  does.
+
+### How this is mitigated today
+- The registry **admin can revoke** any verification record
+  (`RegistryContract::revoke`) if it's reported as incorrect or malicious.
+- If you believe a verification is wrong, please
+  [open an issue](../../issues/new?template=incorrect_verification.md)
+  reporting it, including the WASM hash and why you believe it's incorrect.
+- The web explorer displays the submitter's address and submission timestamp
+  alongside every record — always check these, and independently rebuild
+  the source yourself for anything security-critical, rather than trusting
+  a "✅ Verified" badge alone.
+
+### Where this is headed
+A stronger model — cryptographic attestation via a signing key embedded in the
+WASM's own metadata (similar in spirit to Stellar's SEP-0048 draft) — is worth
+pursuing as this project matures, since it would let the registry verify
+ownership without relying on Soroban exposing deployer info. Contributions
+toward this are welcome; see [open issues](../../issues).
+
 ## Repository Structure
 
 ```
