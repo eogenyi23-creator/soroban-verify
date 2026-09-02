@@ -84,6 +84,37 @@ pursuing as this project matures, since it would let the registry verify
 ownership without relying on Soroban exposing deployer info. Contributions
 toward this are welcome; see [open issues](../../issues).
 
+### Build Verification Is Not Yet End-to-End
+
+**The CLI currently records build claims — it does not yet independently
+verify them.**
+
+`stellar-verify verify` hashes a WASM artifact you provide (or fetches an
+existing hash from-chain) and submits it to the registry along with the
+`source_repo`, `source_commit`, and `build_args` you report. It does
+**not** currently:
+
+- Check out the given source at the given commit itself
+- Rebuild the WASM using a pinned, reproducible toolchain
+- Compare its own build's hash against the one being submitted
+
+This means a submitted verification is currently a **claim about how the
+WASM was built**, not a cryptographic confirmation that the claim is true.
+Additionally, there is no pinned Rust toolchain version
+(`rust-toolchain.toml`) in this repo yet, so even an independent rebuild
+attempt by a third party is not guaranteed to reproduce identical bytes,
+since Rust codegen can vary across compiler versions.
+
+**What this means in practice:** treat "✅ Verified" as "a build recipe
+was recorded," not "this recipe was confirmed to produce this exact WASM."
+For anything security-critical, independently rebuild the source yourself
+using the recorded `source_commit` and `build_args`, and compare the
+resulting hash to the WASM hash on-chain.
+
+True end-to-end build verification — where the CLI itself performs the
+rebuild and only submits on a hash match — is tracked in
+[#7](../../issues/7) and is a priority for this project's next phase.
+
 ## Repository Structure
 
 ```
