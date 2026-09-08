@@ -251,4 +251,3 @@ impl RegistryContract {
             .expect("not initialized")
     }
 }
-
