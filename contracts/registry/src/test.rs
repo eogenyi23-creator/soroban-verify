@@ -214,3 +214,4 @@ fn test_unverified_hash_returns_none() {
     assert!(client.get_verification(&unknown).is_none());
     assert!(!client.is_verified(&unknown));
 }
+
