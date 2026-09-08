@@ -39,7 +39,7 @@ Developer                     soroban-verify                    Stellar Network
 
 Anyone can then look up any contract address and see:
 - ✅ **Verified** — source repo, commit, and build args that reproduce the exact WASM
-- ❌ **Unverified** — WASM hash known, no source linked yet
+- ❌ **Unverified** — WASM hash known, no source linked yet.
 
 ## Trust Model & Limitations
 
