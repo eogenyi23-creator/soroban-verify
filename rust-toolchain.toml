@@ -1,9 +1,4 @@
 [toolchain]
-# Pin to a specific, stable Rust version to ensure deterministic WASM bytecode
-channel = "1.80.1"
-
-# Automatically install the compilation target required for Soroban smart contracts
-targets = [ "wasm32-unknown-unknown" ]
-
-# Automatically fetch components useful for linting and code formatting
+channel = "1.84.0"
+targets = [ "wasm32v1-none" ]
 components = [ "rustfmt", "clippy" ]
