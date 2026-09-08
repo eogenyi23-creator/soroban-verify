@@ -52,4 +52,3 @@ pub enum RegistryError {
     /// One or more required fields are empty.
     InvalidInput = 3,
 }
-
