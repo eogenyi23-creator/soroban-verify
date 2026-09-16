@@ -83,10 +83,6 @@ STELLAR_SECRET_KEY=S...
 4. Run the full test suite: `cargo test` + `pnpm test`
 5. Open a PR against `main`
 
-## Good first issues
-
-Issues tagged [`good first issue`](https://github.com/eogenyi23-creator/soroban-verify/issues?q=label%3A%22good+first+issue%22) are a great starting point.
-
 ## Code style
 
 - **Rust**: `cargo fmt` + `cargo clippy`
