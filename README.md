@@ -246,7 +246,7 @@ stellar-verify lookup --hash 6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c62
 
 ## Contributing
 
-See [docs/contributing.md](docs/contributing.md). Issues tagged `good first issue` are great starting points.
+See [docs/contributing.md](docs/contributing.md).
 
 ## License
 
