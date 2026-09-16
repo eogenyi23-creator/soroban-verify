@@ -9,7 +9,7 @@
 
 When you deploy a Soroban contract, anyone can see its WASM bytecode on-chain. But can they verify **what source code produced that bytecode**? That's the gap soroban-verify fills.
 
-soroban-verify is a three-part system:
+soroban-verify is a four-part system:
 
 | Component | Description |
 |-----------|-------------|
