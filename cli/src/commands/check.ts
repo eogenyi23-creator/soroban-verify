@@ -26,7 +26,7 @@ export const checkCommand = new Command("check")
 
     try {
       // Resolve the WASM hash for this contract address.
-      const wasmHash = await resolveWasmHash(opts.contract, config.rpcUrl as any);
+      const wasmHash = await resolveWasmHash(opts.contract, config.rpcUrl);
       const result = await client.getVerification(wasmHash);
 
       if (!result.verified) {
