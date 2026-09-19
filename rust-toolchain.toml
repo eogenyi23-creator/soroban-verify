@@ -1,0 +1,16 @@
+# rust-toolchain.toml
+#
+# Pins the Rust toolchain version for reproducible WASM builds.
+#
+# Why this matters for soroban-verify:
+# The registry contract's WASM hash is computed from the compiled bytes.
+# Different Rust versions can produce different codegen, which means the
+# same source code can produce a different WASM hash on different machines.
+# Pinning the toolchain ensures that anyone who checks out this repo and
+# runs `cargo build` gets a binary that matches the on-chain WASM hash.
+#
+# To update: change the channel below and run `rustup update`.
+# After updating, redeploy the contract and update REGISTRY_*_ID.
+[toolchain]
+channel = "1.85.0"
+targets = ["wasm32v1-none"]
