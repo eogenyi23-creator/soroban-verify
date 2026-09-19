@@ -58,3 +58,18 @@ source verification.
 **Branch:** feat/deploy → main (awaiting PR merge)
 
 ---
+
+## Unreleased
+
+### Security
+
+- **B2 fix** (`web/src/components/SafeLink.tsx`, `web/src/app/contract/[address]/page.tsx`):
+  Replace bare `<a href={record.sourceRepo}>` with a new `SafeLink` component that
+  validates the URL starts with `https://` before rendering as a clickable anchor.
+  `sourceRepo` is attacker-submitted on-chain data with no format validation in the
+  contract; previously any value including `javascript:`, `data:`, or `vbscript:`
+  schemes could be injected as an href. Non-`https://` values are now rendered as
+  plain text with a tooltip. Adds `isSafeUrl()` helper (exported for testing) and
+  12 regression tests covering safe URLs and all blocked schemes.
+  Addresses audit finding **B2** (stored XSS via sourceRepo href).
+
