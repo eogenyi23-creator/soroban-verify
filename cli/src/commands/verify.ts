@@ -30,19 +30,17 @@ export const verifyCommand = new Command("verify")
     "--wasm <path>",
     "Path to local .wasm file (if provided, hash is computed locally rather than fetched from network)"
   )
-  .option(
-    "--secret-key <key>",
-    "Stellar secret key for signing (or set STELLAR_SECRET_KEY env var)"
-  )
   .action(async (opts, cmd) => {
     const globalOpts = cmd.parent?.opts() ?? {};
     const network = globalOpts.network ?? "testnet";
-    const secretKey = opts.secretKey ?? process.env.STELLAR_SECRET_KEY;
+    const secretKey = process.env.STELLAR_SECRET_KEY;
 
     if (!secretKey) {
       console.error(
         chalk.red(
-          "Error: secret key required. Use --secret-key or set STELLAR_SECRET_KEY env var."
+          "Error: secret key required. Set the STELLAR_SECRET_KEY environment variable.\n" +
+          "  Example: export STELLAR_SECRET_KEY=S...\n" +
+          "  Do not pass the key as a CLI flag — it would appear in shell history and process listings."
         )
       );
       process.exit(1);

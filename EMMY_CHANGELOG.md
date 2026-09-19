@@ -58,3 +58,17 @@ source verification.
 **Branch:** feat/deploy → main (awaiting PR merge)
 
 ---
+
+## Unreleased
+
+### Security
+
+- **B17** (`cli/src/commands/verify.ts`, `cli/src/commands/__tests__/commands.test.ts`):
+  Removed the `--secret-key <key>` CLI flag. Stellar secret keys passed as CLI
+  flags appear in shell history (`~/.bash_history`, `~/.zsh_history`) and in
+  `ps aux` output visible to all users on the same machine. The env var
+  `STELLAR_SECRET_KEY` was already the documented alternative; it is now the
+  only supported method. The error message when the key is missing has been
+  updated to explain why the flag was removed. Adds a regression test that
+  confirms exit(1) when the env var is absent.
+  Addresses audit finding **B17** (--secret-key leaks into shell history).
