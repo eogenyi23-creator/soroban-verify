@@ -12,5 +12,5 @@
 # To update: change the channel below and run `rustup update`.
 # After updating, redeploy the contract and update REGISTRY_*_ID.
 [toolchain]
-channel = "1.85.0"
+channel = "1.91.0"
 targets = ["wasm32v1-none"]
