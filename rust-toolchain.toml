@@ -9,8 +9,14 @@
 # Pinning the toolchain ensures that anyone who checks out this repo and
 # runs `cargo build` gets a binary that matches the on-chain WASM hash.
 #
-# To update: change the channel below and run `rustup update`.
-# After updating, redeploy the contract and update REGISTRY_*_ID.
+# Current version: 1.91.0 (minimum required by soroban-sdk@27.0.6)
+#
+# To update:
+#   1. Change the channel value below
+#   2. Run: rustup update
+#   3. Run: cargo test --manifest-path contracts/registry/Cargo.toml
+#   4. If tests pass: redeploy the contract and update REGISTRY_*_ID
+#   5. Update EMMY_CHANGELOG.md with the change
 [toolchain]
 channel = "1.91.0"
 targets = ["wasm32v1-none"]
