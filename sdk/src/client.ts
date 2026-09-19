@@ -146,8 +146,12 @@ export function createRegistryClient(config: NetworkConfig) {
 
 export async function resolveWasmHash(
   contractAddress: string,
-  server: rpc.Server
+  server: rpc.Server | string
 ): Promise<string> {
+  const rpcServer =
+    typeof server === "string"
+      ? new rpc.Server(server, { allowHttp: false })
+      : server;
   const ledgerKey = xdr.LedgerKey.contractData(
     new xdr.LedgerKeyContractData({
       contract: new Address(contractAddress).toScAddress(),
@@ -156,7 +160,7 @@ export async function resolveWasmHash(
     })
   );
 
-  const response = await server.getLedgerEntries(ledgerKey);
+  const response = await rpcServer.getLedgerEntries(ledgerKey);
   if (!response.entries || response.entries.length === 0) {
     throw new Error(`Contract not found: ${contractAddress}`);
   }
