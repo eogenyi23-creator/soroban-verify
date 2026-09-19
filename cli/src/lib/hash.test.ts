@@ -15,7 +15,7 @@ import { writeFile, rm, mkdir } from "fs/promises";
 import { createHash } from "crypto";
 import { join } from "path";
 import { tmpdir } from "os";
-import { computeLocalWasmHash, sha256Hex } from "../hash.js";
+import { computeLocalWasmHash, sha256Hex } from "./hash.js";
 
 // ---------------------------------------------------------------------------
 // Test fixture: a minimal valid-ish WASM binary
