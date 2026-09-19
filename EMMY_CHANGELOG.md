@@ -61,15 +61,33 @@ source verification.
 
 ## Unreleased
 
-### Security
+### Fixed
 
-- **B2 fix** (`web/src/components/SafeLink.tsx`, `web/src/app/contract/[address]/page.tsx`):
-  Replace bare `<a href={record.sourceRepo}>` with a new `SafeLink` component that
-  validates the URL starts with `https://` before rendering as a clickable anchor.
-  `sourceRepo` is attacker-submitted on-chain data with no format validation in the
-  contract; previously any value including `javascript:`, `data:`, or `vbscript:`
-  schemes could be injected as an href. Non-`https://` values are now rendered as
-  plain text with a tooltip. Adds `isSafeUrl()` helper (exported for testing) and
-  12 regression tests covering safe URLs and all blocked schemes.
-  Addresses audit finding **B2** (stored XSS via sourceRepo href).
+- **B1 / U1 / B18** (`sdk/src/client.ts`, `cli/src/commands/verify.ts`, `cli/src/commands/check.ts`):
+  Both `verify` and `check` CLI commands were broken at runtime when `--wasm` was
+  not provided. `resolveWasmHash` expects `rpc.Server` but both commands passed a
+  plain string (`config.rpcUrl`), causing a method-not-found crash. `verify.ts`
+  additionally used `(client as any)._server` which is never set on the returned
+  object, and called `createRegistryClient` twice (wasting an RPC connection).
+  Fix: `resolveWasmHash` signature widened to accept `rpc.Server | string`,
+  constructing an `rpc.Server` internally when a URL string is given. Both CLI
+  commands updated to pass `config.rpcUrl` directly. Duplicate client construction
+  in `verify.ts` eliminated. All 18 CLI tests pass.
+  Addresses audit findings **B1**, **U1**, and **B18**.
 
+
+## Unreleased
+
+### Fixed
+
+- **B1 / U1 / B18** (`sdk/src/client.ts`, `cli/src/commands/verify.ts`, `cli/src/commands/check.ts`):
+  Both `verify` and `check` CLI commands were broken at runtime when `--wasm` was
+  not provided. `resolveWasmHash` expects `rpc.Server` but both commands passed a
+  plain string (`config.rpcUrl`), causing a method-not-found crash. `verify.ts`
+  additionally used `(client as any)._server` which is never set on the returned
+  object, and called `createRegistryClient` twice (wasting an RPC connection).
+  Fix: `resolveWasmHash` signature widened to accept `rpc.Server | string`,
+  constructing an `rpc.Server` internally when a URL string is given. Both CLI
+  commands updated to pass `config.rpcUrl` directly. Duplicate client construction
+  in `verify.ts` eliminated. All 18 CLI tests pass.
+  Addresses audit findings **B1**, **U1**, and **B18**.
