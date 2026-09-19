@@ -5,6 +5,99 @@
 [![CI](https://github.com/eogenyi23-creator/soroban-verify/actions/workflows/ci.yml/badge.svg)](https://github.com/eogenyi23-creator/soroban-verify/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+## End-to-End Example
+
+Here is a real verification walkthrough. This is what soroban-verify is for.
+
+### Step 1 — Build the contract locally
+
+```bash
+git clone https://github.com/stellar/soroban-examples
+cd soroban-examples/hello_world
+cargo build --target wasm32v1-none --release
+```
+
+This produces `target/wasm32v1-none/release/soroban_hello_world_contract.wasm`.
+
+### Step 2 — Compute the WASM hash
+
+```bash
+sha256sum target/wasm32v1-none/release/soroban_hello_world_contract.wasm
+# 6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b
+```
+
+This is the hash Stellar stores on-chain when you run `stellar contract upload`.
+The registry contract maps exactly this hash to your source code.
+
+### Step 3 — Check if the contract is already verified
+
+```bash
+stellar-verify check \
+  --contract CAAAAA...YOUR_CONTRACT_ADDRESS \
+  --network testnet
+
+# Output:
+# ✗ Contract CAAAAA... is NOT source-verified.
+#   WASM hash: 6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b
+```
+
+### Step 4 — Submit a verification record
+
+```bash
+export STELLAR_SECRET_KEY="S...your-secret-key"
+
+stellar-verify verify \
+  --contract CAAAAA...YOUR_CONTRACT_ADDRESS \
+  --source https://github.com/stellar/soroban-examples \
+  --commit 3a7f2d1c9b4e5f8a0d6c2e1b9f4a7d3c8e5b2f1a \
+  --build-args "cargo build --release --target wasm32v1-none" \
+  --network testnet
+
+# Output:
+# ✓ Verification submitted!
+# Transaction: a8f3c2e1b9d4f7a2c5e8b3d6f1a4c7e2b5d8f3a6
+# WASM hash:   6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b
+# Source:      https://github.com/stellar/soroban-examples
+# Commit:      3a7f2d1c9b4e5f8a0d6c2e1b9f4a7d3c8e5b2f1a
+```
+
+### Step 5 — Verify the record is on-chain
+
+```bash
+stellar-verify lookup \
+  --hash 6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b \
+  --network testnet
+
+# Output:
+# ✓ Verification record found!
+# WASM hash:     6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b
+# Source repo:   https://github.com/stellar/soroban-examples
+# Commit:        3a7f2d1c9b4e5f8a0d6c2e1b9f4a7d3c8e5b2f1a
+# Build args:    cargo build --release --target wasm32v1-none
+# Submitted by:  GCXXX...your-address
+# Ledger:        54321
+```
+
+### Step 6 — Anyone can independently verify
+
+```bash
+# Check out the same commit
+git clone https://github.com/stellar/soroban-examples
+cd soroban-examples
+git checkout 3a7f2d1c9b4e5f8a0d6c2e1b9f4a7d3c8e5b2f1a
+
+# Build with the same args
+cargo build --target wasm32v1-none --release
+
+# Compare the hash
+sha256sum target/wasm32v1-none/release/soroban_hello_world_contract.wasm
+# → must match 6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b
+```
+
+If the hashes match, you have independently confirmed that the source code at that commit produces exactly the WASM deployed on-chain.
+
+---
+
 ## What is soroban-verify?
 
 When you deploy a Soroban contract, anyone can see its WASM bytecode on-chain. But can they verify **what source code produced that bytecode**? That's the gap soroban-verify fills.
@@ -40,6 +133,23 @@ Developer                     soroban-verify                    Stellar Network
 Anyone can then look up any contract address and see:
 - ✅ **Verified** — source repo, commit, and build args that reproduce the exact WASM
 - ❌ **Unverified** — WASM hash known, no source linked yet.
+
+## How soroban-verify Differs from Stellar Expert
+
+[Stellar Expert](https://stellar.expert/) is the leading Stellar network explorer and provides contract information. Here is exactly how soroban-verify is different:
+
+| Feature | Stellar Expert | soroban-verify |
+|---------|---------------|----------------|
+| **Verification storage** | Centralised database (off-chain) | On-chain Soroban contract — no single point of failure |
+| **Source-code linking** | Not available — shows bytecode/ABI only | Explicit: source repo URL + git commit SHA + build args |
+| **Independent re-verification** | Not supported | Built-in: `stellar-verify check` lets anyone rebuild and compare |
+| **Verification permanence** | Depends on Stellar Expert's service | Stored with ~1-year ledger TTL in persistent storage |
+| **Programmatic access** | Via Stellar Expert API (third-party) | Direct contract call — no intermediary |
+| **Ownership of record** | Controlled by Stellar Expert | Controlled by registry admin + immutable once submitted |
+
+**The key difference:** Stellar Expert tells you what a contract does (its ABI/spec). soroban-verify tells you what source code it was built from, with an on-chain record that anyone can independently audit by rebuilding the source themselves.
+
+They are complementary tools. soroban-verify's web explorer already surfaces Soroban contract specs (via the on-chain ABI) alongside verification status.
 
 ## Trust Model & Limitations
 
@@ -137,7 +247,8 @@ soroban-verify/
 │       │   └── lookup.ts    # `stellar-verify lookup` command
 │       └── lib/
 │           ├── hash.ts      # WASM hash computation
-│           └── rpc.ts       # Stellar RPC helpers
+│           ├── hash.test.ts # Unit tests for hash.ts
+│           └── config.ts    # Network config builder
 ├── web/
 │   ├── package.json
 │   ├── next.config.js
@@ -152,8 +263,7 @@ soroban-verify/
 │       │   ├── ContractSpec.tsx
 │       │   └── SearchBar.tsx
 │       └── lib/
-│           ├── registry.ts  # Registry contract client
-│           └── stellar.ts   # Stellar RPC helpers
+│           └── registry.ts  # Registry contract client
 ├── sdk/
 │   ├── package.json
 │   ├── tsconfig.json
@@ -165,6 +275,7 @@ soroban-verify/
 │   ├── architecture.md
 │   ├── contributing.md
 │   └── deploying.md
+├── DEPLOY.md                # Quick-start deploy guide (root)
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml           # Build + test on every PR
@@ -173,6 +284,7 @@ soroban-verify/
 │       ├── bug_report.md
 │       └── feature_request.md
 ├── Cargo.toml               # Rust workspace
+├── EMMY_CHANGELOG.md        # Append-only change log
 └── README.md
 ```
 
