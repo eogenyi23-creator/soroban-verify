@@ -145,6 +145,9 @@ describe("stellar-verify CLI commands", () => {
     it("warns and exits cleanly when the WASM hash is already verified", async () => {
       mocks.resolveWasmHash.mockResolvedValue("abcd1234");
       mocks.isVerified.mockResolvedValue(true);
+      // Secret key is supplied via env var — the --secret-key CLI flag was
+      // removed (B17) to prevent leaking keys into shell history / ps output.
+      process.env.STELLAR_SECRET_KEY = "STEST_SECRET_KEY_FOR_UNIT_TEST_ONLY";
       await expect(
         verifyCommand.parseAsync([
           "node",
@@ -156,8 +159,6 @@ describe("stellar-verify CLI commands", () => {
           "https://github.com/org/repo",
           "--commit",
           "deadbeef",
-          "--secret-key",
-          "S...",
         ])
       ).rejects.toThrow("process.exit(1)");
 
@@ -167,6 +168,25 @@ describe("stellar-verify CLI commands", () => {
       );
       expect(mocks.isVerified).toHaveBeenCalledWith("abcd1234");
       expect(mocks.submit).not.toHaveBeenCalled();
+    });
+
+    it("exits with error when STELLAR_SECRET_KEY is not set", async () => {
+      // STELLAR_SECRET_KEY is deleted in beforeEach
+      await expect(
+        verifyCommand.parseAsync([
+          "node",
+          "stellar-verify",
+          "verify",
+          "--contract",
+          "CACVFG6MBJ9SPQ6C7NU...",
+          "--source",
+          "https://github.com/org/repo",
+          "--commit",
+          "deadbeef",
+        ])
+      ).rejects.toThrow("process.exit(1)");
+
+      expect(mocks.resolveWasmHash).not.toHaveBeenCalled();
     });
   });
 });
