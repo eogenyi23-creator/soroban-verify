@@ -1,5 +1,6 @@
 import { VerificationBadge } from "@/components/VerificationBadge";
 import { ContractSpec } from "@/components/ContractSpec";
+import { SafeLink } from "@/components/SafeLink";
 import { getRegistryClient } from "@/lib/registry";
 import { resolveWasmHash } from "@soroban-verify/sdk";
 import { rpc } from "@stellar/stellar-sdk";
@@ -118,14 +119,9 @@ export default async function ContractPage({ params }: Props) {
                       </td>
                       <td style={{ padding: "12px 16px", fontSize: 13, fontFamily: "monospace" }}>
                         {label === "Source Repository" ? (
-                          <a
-                            href={value}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ color: "#8ae4ff" }}
-                          >
+                          <SafeLink href={value} style={{ color: "#8ae4ff" }}>
                             {value}
-                          </a>
+                          </SafeLink>
                         ) : (
                           value
                         )}

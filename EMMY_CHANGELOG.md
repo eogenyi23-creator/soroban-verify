@@ -61,14 +61,33 @@ source verification.
 
 ## Unreleased
 
-### Security
+### Fixed
 
-- **B17** (`cli/src/commands/verify.ts`, `cli/src/commands/__tests__/commands.test.ts`):
-  Removed the `--secret-key <key>` CLI flag. Stellar secret keys passed as CLI
-  flags appear in shell history (`~/.bash_history`, `~/.zsh_history`) and in
-  `ps aux` output visible to all users on the same machine. The env var
-  `STELLAR_SECRET_KEY` was already the documented alternative; it is now the
-  only supported method. The error message when the key is missing has been
-  updated to explain why the flag was removed. Adds a regression test that
-  confirms exit(1) when the env var is absent.
-  Addresses audit finding **B17** (--secret-key leaks into shell history).
+- **B1 / U1 / B18** (`sdk/src/client.ts`, `cli/src/commands/verify.ts`, `cli/src/commands/check.ts`):
+  Both `verify` and `check` CLI commands were broken at runtime when `--wasm` was
+  not provided. `resolveWasmHash` expects `rpc.Server` but both commands passed a
+  plain string (`config.rpcUrl`), causing a method-not-found crash. `verify.ts`
+  additionally used `(client as any)._server` which is never set on the returned
+  object, and called `createRegistryClient` twice (wasting an RPC connection).
+  Fix: `resolveWasmHash` signature widened to accept `rpc.Server | string`,
+  constructing an `rpc.Server` internally when a URL string is given. Both CLI
+  commands updated to pass `config.rpcUrl` directly. Duplicate client construction
+  in `verify.ts` eliminated. All 18 CLI tests pass.
+  Addresses audit findings **B1**, **U1**, and **B18**.
+
+
+## Unreleased
+
+### Fixed
+
+- **B1 / U1 / B18** (`sdk/src/client.ts`, `cli/src/commands/verify.ts`, `cli/src/commands/check.ts`):
+  Both `verify` and `check` CLI commands were broken at runtime when `--wasm` was
+  not provided. `resolveWasmHash` expects `rpc.Server` but both commands passed a
+  plain string (`config.rpcUrl`), causing a method-not-found crash. `verify.ts`
+  additionally used `(client as any)._server` which is never set on the returned
+  object, and called `createRegistryClient` twice (wasting an RPC connection).
+  Fix: `resolveWasmHash` signature widened to accept `rpc.Server | string`,
+  constructing an `rpc.Server` internally when a URL string is given. Both CLI
+  commands updated to pass `config.rpcUrl` directly. Duplicate client construction
+  in `verify.ts` eliminated. All 18 CLI tests pass.
+  Addresses audit findings **B1**, **U1**, and **B18**.

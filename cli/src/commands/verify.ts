@@ -65,9 +65,9 @@ export const verifyCommand = new Command("verify")
         wasmHash = await computeLocalWasmHash(path.resolve(opts.wasm));
         spinner.succeed(`WASM hash (local): ${chalk.green(wasmHash)}`);
       } else {
-        const client = createRegistryClient(config);
-        const server = (client as any)._server; // access internal server
-        wasmHash = await resolveWasmHash(opts.contract, (client as any)._server ?? config.rpcUrl);
+        // resolveWasmHash accepts an rpcUrl string directly (no need to
+        // construct rpc.Server here — the SDK handles it internally).
+        wasmHash = await resolveWasmHash(opts.contract, config.rpcUrl);
         spinner.succeed(`WASM hash (on-chain): ${chalk.green(wasmHash)}`);
       }
     } catch (err) {
@@ -75,7 +75,7 @@ export const verifyCommand = new Command("verify")
       process.exit(1);
     }
 
-    // Step 2: check if already verified
+    // Step 2: check if already verified (single client instance reused in step 3)
     const checkSpinner = ora("Checking existing registry entry...").start();
     const client = createRegistryClient(config);
     try {
