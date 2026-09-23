@@ -1,0 +1,71 @@
+name: Publish Packages
+
+# Triggers on version tags, e.g. v0.1.0, v1.2.3
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  publish:
+    name: Publish sdk + cli to npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9"
+
+      # ── sdk must be installed + built first: cli depends on it via
+      # "workspace:*", and cli's tsc build type-checks against sdk's
+      # dist/index.d.ts, which only exists after this build step.
+      - name: Install SDK dependencies
+        run: pnpm install --no-frozen-lockfile
+        working-directory: sdk
+
+      - name: Build SDK
+        run: pnpm build
+        working-directory: sdk
+
+      # NOTE: no `pnpm test` step for sdk here — sdk currently has zero
+      # test files and no vitest.config.ts, so `vitest run` exits non-zero
+      # ("no test files found") rather than passing. ci.yml has the same
+      # gap for the same reason. Add this step back once sdk has tests.
+
+      - name: Install CLI dependencies
+        run: pnpm install --no-frozen-lockfile
+        working-directory: cli
+
+      - name: Build CLI
+        run: pnpm build
+        working-directory: cli
+
+      - name: Run CLI tests
+        run: pnpm test
+        working-directory: cli
+
+      # `-r` recurses over every workspace package, automatically skipping
+      # ones marked "private": true (web/ is private and is skipped).
+      # `--access public` is required because both @soroban-verify/sdk and
+      # @soroban-verify/cli are scoped packages, which npm defaults to
+      # restricted/private unless told otherwise.
+      # `--no-git-checks` is required because pnpm's default publish check
+      # expects a clean checkout on a normal branch ref; GitHub Actions
+      # checks out the tag in a detached HEAD state, which fails that
+      # check even though nothing is actually wrong.
+      # pnpm automatically rewrites the "workspace:*" dependency on
+      # @soroban-verify/sdk in cli's package.json to sdk's real published
+      # version number as part of packing — this is native pnpm behavior,
+      # not something this workflow has to do manually.
+      - name: Publish packages to npm
+        run: pnpm -r publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
