@@ -74,3 +74,43 @@ source verification.
   commands updated to pass `config.rpcUrl` directly. Duplicate client construction
   in `verify.ts` eliminated. All 18 CLI tests pass.
   Addresses audit findings **B1**, **U1**, and **B18**.
+
+  ---
+
+## 2026-09-23 — Retroactive documentation: B2, B17
+
+**Note:** These fixes were already present in the codebase but were never
+logged here. Documenting them now for audit-trail completeness.
+
+**What changed (B2):**
+- Added `web/src/components/SafeLink.tsx` with `isSafeUrl()`, which rejects
+  `javascript:`, `data:`, and other unsafe URL schemes.
+- Replaced the raw `<a href={record.sourceRepo}>` in
+  `web/src/app/contract/[address]/page.tsx` with `<SafeLink>`.
+- Added `web/src/components/SafeLink.test.ts` (regression coverage for the
+  unsafe-scheme cases).
+
+**Why (B2):**
+`sourceRepo` is arbitrary attacker-submitted on-chain data. Rendering it
+directly as an `href` allowed stored XSS via `javascript:`/`data:` URIs.
+
+**What changed (B17):**
+- Removed the `--secret-key` CLI flag from `verify.ts`.
+- `STELLAR_SECRET_KEY` environment variable is now the only way to supply
+  the signing key.
+
+**Why (B17):**
+A CLI flag value is visible in shell history and in `ps` output on shared
+or multi-user machines, leaking the secret key. The env var is not.
+
+**Addresses audit findings B2 and B17.**
+
+---
+
+
+Addresses audit findings **B1**, **U1**, and **B18**.
+
+---
+
+All 19 CLI tests pass (13 in `hash.test.ts`, 6 in `commands.test.ts`).
+Addresses audit findings **B1**, **U1**, and **B18**.
