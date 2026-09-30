@@ -109,7 +109,6 @@ jobs:
       - name: Lint
         run: pnpm lint
         working-directory: web
-        continue-on-error: true
 
       - name: Build
         run: pnpm build
