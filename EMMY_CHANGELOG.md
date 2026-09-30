@@ -105,3 +105,64 @@ or multi-user machines, leaking the secret key. The env var is not.
   in `verify.ts` eliminated. All 19 CLI tests pass (13 in `hash.test.ts`, 6 in
   `commands.test.ts`).
   Addresses audit findings **B1**, **U1**, and **B18**.
+
+---
+
+## 2026-09-30 — Branch: ci-lint-gate
+
+**What changed:**
+- Added two steps to the "Contract (Rust)" job in `.github/workflows/ci.yml`, inserted before `cargo test`:
+  1. `cargo fmt --manifest-path contracts/registry/Cargo.toml --check`
+  2. `cargo clippy --manifest-path contracts/registry/Cargo.toml --target wasm32v1-none -- -D warnings`
+- Fixed all pre-existing fmt and clippy issues so both commands pass with 0 errors:
+  - `contracts/registry/src/lib.rs`: changed four `len() == 0` comparisons to `.is_empty()` (clippy::len-zero); added `#[allow(deprecated)]` with explanatory comments on both `Events::publish` call sites (cannot migrate to `#[contractevent]` without a contract interface change that must be a versioned upgrade)
+  - `contracts/registry/src/types.rs`: removed the unused `pub mod events { VERIFIED, REVOKED }` block (dead_code); reordered `use` imports to match rustfmt's alphabetical requirement
+  - `contracts/registry/src/test.rs`: reformatted long string literals and `assert_eq!` calls to match rustfmt's line-length rules; reordered `use` imports
+
+**Why:**
+Without `--check` and `--check clippy` in CI, formatting drift and lint regressions are invisible until a reviewer notices them manually. The two missing steps mean the "Contract (Rust)" job was giving a green check despite accumulated lint warnings. `-D warnings` makes clippy failures block the build, consistent with how every other Rust CI gate should work.
+
+**Branch:** ci-lint-gate → main
+
+---
+
+## 2026-09-30 — Branch: web-lint-enforce
+
+**What changed:**
+- Removed `continue-on-error: true` from the "Lint" step in the "Web (Next.js)" CI job (`.github/workflows/ci.yml`)
+- Created `web/.eslintrc.json` with `{ "extends": "next/core-web-vitals" }` (the standard Next.js strict preset)
+- Confirmed `pnpm lint` passes with 0 errors
+
+**Why:**
+`continue-on-error: true` on the lint step means any lint failure — including rule regressions introduced in future PRs — would silently pass CI. With `eslint-config-next` already listed as a dev dependency and `pnpm lint` wired up in `package.json`, the only thing missing was the config file and the enforcement flag. No lint errors existed once the config was in place, so no source changes were needed.
+
+**Branch:** web-lint-enforce → main
+
+---
+
+## 2026-09-30 — Branch: revoke-auth-test
+
+**What changed:**
+- Added `test_revoke_requires_admin_auth` to `contracts/registry/src/test.rs`
+- Also imported `MockAuth`, `MockAuthInvoke`, and `IntoVal` from `soroban_sdk::testutils` (previously unused in tests)
+
+**Why:**
+`test_initialize_requires_admin_auth` proved that `initialize()` enforces admin auth, but there was no equivalent for `revoke()`. The tricky constraint: `revoke()` can only be tested after the contract is initialized and has a record to revoke — but initialization itself requires admin auth. Using `mock_all_auths()` for setup would have made the test meaningless (it would mock away the very `require_auth()` gate being tested). The solution: scope each setup call with a `client.mock_auths(&[MockAuth { ... }])` chain that mocks only the exact address and function needed, so the final `revoke()` call fires with no auth mock active. The `#[should_panic]` annotation verifies the panic occurs. All 11 tests pass.
+
+**Branch:** revoke-auth-test → main
+
+---
+
+## 2026-09-30 — Branch: testnet-deployment
+
+**What changed:**
+- Deployed the registry contract to Stellar testnet
+- Contract ID: `CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO`
+- Added a "Verified Testnet Deployment" section to `DEPLOY.md` with the real contract ID, date, explorer link, and raw CLI output from running the full build → check → submit → verify flow
+
+**Why:**
+DEPLOY.md described the deployment steps in detail but contained no evidence that the steps had actually been followed. Evaluators had no way to tell whether the contract existed or whether the documented flow produced working results. The new section gives a verifiable contract ID, an explorer link, and unedited real output.
+
+**Note on SDK compatibility:** The CLI's `verify` command's polling step throws `Bad union switch: 4` after submitting — this is an XDR compatibility mismatch between stellar-sdk v13.1.0 (what the repo pins) and testnet protocol v29. The transaction itself succeeded on-chain (verified by querying the chain directly). The read path (`check`, `lookup`) works correctly through the CLI. Fixing the SDK version is a separate concern outside the four gaps addressed here.
+
+**Branch:** testnet-deployment → main
