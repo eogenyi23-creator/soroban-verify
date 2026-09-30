@@ -105,3 +105,16 @@ or multi-user machines, leaking the secret key. The env var is not.
   in `verify.ts` eliminated. All 19 CLI tests pass (13 in `hash.test.ts`, 6 in
   `commands.test.ts`).
   Addresses audit findings **B1**, **U1**, and **B18**.
+
+---
+
+## 2026-09-30 — Branch: revoke-auth-test
+
+**What changed:**
+- Added `test_revoke_requires_admin_auth` to `contracts/registry/src/test.rs`
+- Also imported `MockAuth`, `MockAuthInvoke`, and `IntoVal` from `soroban_sdk::testutils` (previously unused in tests)
+
+**Why:**
+`test_initialize_requires_admin_auth` proved that `initialize()` enforces admin auth, but there was no equivalent for `revoke()`. The tricky constraint: `revoke()` can only be tested after the contract is initialized and has a record to revoke — but initialization itself requires admin auth. Using `mock_all_auths()` for setup would have made the test meaningless (it would mock away the very `require_auth()` gate being tested). The solution: scope each setup call with a `client.mock_auths(&[MockAuth { ... }])` chain that mocks only the exact address and function needed, so the final `revoke()` call fires with no auth mock active. The `#[should_panic]` annotation verifies the panic occurs. All 11 tests pass.
+
+**Branch:** revoke-auth-test → main
