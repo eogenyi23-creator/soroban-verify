@@ -1,9 +1,10 @@
 #![cfg(test)]
 
 use super::*;
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 use soroban_sdk::{
-    testutils::Address as _,
-    Address, Env, String,
+    testutils::{MockAuth, MockAuthInvoke},
+    IntoVal,
 };
 use soroban_sdk::{
     testutils::{MockAuth, MockAuthInvoke},
@@ -66,7 +67,10 @@ fn test_submit_and_lookup() {
     let submitter = Address::generate(&env);
     client.initialize(&admin);
 
-    let wasm_hash = s(&env, "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b");
+    let wasm_hash = s(
+        &env,
+        "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b",
+    );
     let source_repo = s(&env, "https://github.com/example/my-contract");
     let source_commit = s(&env, "abc123def456");
     let build_args = s(&env, "cargo build --release --target wasm32v1-none");
@@ -98,8 +102,14 @@ fn test_get_by_submitter() {
     let submitter = Address::generate(&env);
     client.initialize(&admin);
 
-    let hash1 = s(&env, "aaaa000000000000000000000000000000000000000000000000000000000001");
-    let hash2 = s(&env, "bbbb000000000000000000000000000000000000000000000000000000000002");
+    let hash1 = s(
+        &env,
+        "aaaa000000000000000000000000000000000000000000000000000000000001",
+    );
+    let hash2 = s(
+        &env,
+        "bbbb000000000000000000000000000000000000000000000000000000000002",
+    );
 
     client.submit(
         &submitter,
@@ -127,7 +137,10 @@ fn test_submit_duplicate_returns_error() {
     let submitter = Address::generate(&env);
     client.initialize(&admin);
 
-    let wasm_hash = s(&env, "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b");
+    let wasm_hash = s(
+        &env,
+        "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b",
+    );
 
     client.submit(
         &submitter,
@@ -146,10 +159,7 @@ fn test_submit_duplicate_returns_error() {
         &s(&env, "cargo build --release"),
     );
 
-    assert_eq!(
-        result,
-        Err(Ok(RegistryError::AlreadyVerified))
-    );
+    assert_eq!(result, Err(Ok(RegistryError::AlreadyVerified)));
 }
 
 #[test]
@@ -176,7 +186,10 @@ fn test_revoke() {
     let submitter = Address::generate(&env);
     client.initialize(&admin);
 
-    let wasm_hash = s(&env, "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b");
+    let wasm_hash = s(
+        &env,
+        "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b",
+    );
 
     client.submit(
         &submitter,

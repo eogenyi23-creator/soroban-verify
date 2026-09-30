@@ -218,3 +218,190 @@ Set `REGISTRY_TESTNET_ID` in your environment or pass `--registry-id`.
 ```bash
 rustup target add wasm32v1-none
 ```
+
+---
+
+## Verified Testnet Deployment
+
+**Date deployed:** 2026-09-30
+
+**Contract ID:** `CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO`
+
+**Explorer link:** https://lab.stellar.org/r/testnet/contract/CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO
+
+---
+
+### Steps executed
+
+**Step 1 — Build WASM**
+
+```
+$ cargo build --manifest-path contracts/registry/Cargo.toml --target wasm32v1-none --release
+   Compiling soroban-verify-registry v0.1.0 (...)
+    Finished `release` profile [optimized] target(s) in 1m 04s
+
+$ ls -lh target/wasm32v1-none/release/soroban_verify_registry.wasm
+-rwxrwxrwx 2 codespace codespace 17K Sep 30 14:53 target/wasm32v1-none/release/soroban_verify_registry.wasm
+```
+
+**Step 2 — Generate and fund deployer identity**
+
+```
+$ stellar keys generate deployer --network testnet --fund
+✅ Key saved with alias deployer in "/home/codespace/.config/stellar/identity/deployer.toml"
+✅ Account deployer funded on "Test SDF Network ; September 2015"
+
+$ stellar keys address deployer
+GA3E4QUBCD6VNFM7M4KJHPWN5N4WDAQTDBXMROVSFKM3STSO35IBA3TN
+```
+
+**Step 3 — Upload WASM**
+
+```
+$ stellar contract upload \
+  --network testnet \
+  --source deployer \
+  --wasm target/wasm32v1-none/release/soroban_verify_registry.wasm
+ℹ️  Simulating transaction…
+ℹ️  Signing transaction: 913bd8b322427b05d449ef5c3e864b6fc9e3935c043197792e8d85e2cf6dc770
+🌎 Sending transaction…
+✅ Transaction submitted successfully!
+🔗 https://stellar.expert/explorer/testnet/tx/913bd8b322427b05d449ef5c3e864b6fc9e3935c043197792e8d85e2cf6dc770
+42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5
+```
+
+WASM hash: `42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5`
+
+**Step 4 — Deploy contract instance**
+
+```
+$ stellar contract deploy \
+  --network testnet \
+  --source deployer \
+  --wasm-hash 42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5
+ℹ️  Deploying contract using wasm hash 42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5
+ℹ️  Simulating transaction…
+ℹ️  Signing transaction: e6ce5bcb010809765c12a91cb1564235d26b34d5f76e66170ff40a73e853f805
+🌎 Sending transaction…
+✅ Transaction submitted successfully!
+🔗 https://stellar.expert/explorer/testnet/tx/e6ce5bcb010809765c12a91cb1564235d26b34d5f76e66170ff40a73e853f805
+🔗 https://lab.stellar.org/r/testnet/contract/CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO
+✅ Deployed!
+CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO
+```
+
+**Step 5 — Initialize contract**
+
+```
+$ stellar contract invoke \
+  --network testnet \
+  --source deployer \
+  --id CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO \
+  -- initialize \
+  --admin GA3E4QUBCD6VNFM7M4KJHPWN5N4WDAQTDBXMROVSFKM3STSO35IBA3TN
+ℹ️  Simulating transaction…
+ℹ️  Signing transaction: 565b91c4f1a94f8e6c3394088bec204d3d1958c1d82f32ca5ceef7d30f3e1fe6
+🌎 Sending transaction…
+✅ Transaction submitted successfully!
+🔗 https://stellar.expert/explorer/testnet/tx/565b91c4f1a94f8e6c3394088bec204d3d1958c1d82f32ca5ceef7d30f3e1fe6
+```
+
+**Step 6 — Confirm deployment**
+
+```
+$ stellar contract invoke --network testnet --source deployer \
+  --id CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO -- admin
+ℹ️  Simulation identified as read-only. Send by rerunning with `--send=yes`.
+"GA3E4QUBCD6VNFM7M4KJHPWN5N4WDAQTDBXMROVSFKM3STSO35IBA3TN"
+
+$ stellar contract invoke --network testnet --source deployer \
+  --id CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO -- count
+ℹ️  Simulation identified as read-only. Send by rerunning with `--send=yes`.
+0
+```
+
+---
+
+### Full CLI end-to-end example
+
+**Hash (computed from local WASM):**
+```
+$ node cli/dist/index.js check \
+  --contract CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO
+- Checking CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO on testnet...
+✖ ✗ Contract CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO is NOT source-verified.
+  WASM hash: 42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5
+
+  To submit a verification, run:
+  stellar-verify verify --contract CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO --source <url> --commit <sha>
+```
+
+**Submit verification:**
+```
+$ node cli/dist/index.js verify \
+  --contract CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO \
+  --source https://github.com/eogenyi23-creator/soroban-verify \
+  --commit 9519886a1c1a8d0ab169fc3496d99cacd050f7bf \
+  --build-args "cargo build --release --target wasm32v1-none" \
+  --wasm target/wasm32v1-none/release/soroban_verify_registry.wasm
+
+🔍 soroban-verify — submitting verification on testnet
+
+- Resolving WASM hash...
+✔ WASM hash (local): 42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5
+- Checking existing registry entry...
+✔ No existing record found — proceeding.
+- Submitting verification to the registry...
+✖ Submission failed: Bad union switch: 4
+```
+
+Note: the CLI's polling step failed with an XDR compatibility error (stellar-sdk
+v13.1.0 vs testnet protocol v29), but the transaction was successfully submitted
+on-chain before the error occurred.
+
+**Verify on-chain (confirmed via stellar CLI):**
+```
+$ stellar contract invoke --network testnet --source deployer \
+  --id CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO \
+  -- get_verification \
+  --wasm_hash 42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5
+ℹ️  Simulation identified as read-only. Send by rerunning with `--send=yes`.
+{"build_args":"cargo build --release --target wasm32v1-none","source_commit":"9519886a1c1a8d0ab169fc3496d99cacd050f7bf","source_repo":"https://github.com/eogenyi23-creator/soroban-verify","submitted_at":4951304,"submitted_by":"GA3E4QUBCD6VNFM7M4KJHPWN5N4WDAQTDBXMROVSFKM3STSO35IBA3TN","wasm_hash":"42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5"}
+```
+
+**Check command (read path works fine):**
+```
+$ node cli/dist/index.js check \
+  --contract CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO
+- Checking CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO on testnet...
+✔ ✓ Contract CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO is source-verified!
+
+WASM hash:     42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5
+Source repo:   https://github.com/eogenyi23-creator/soroban-verify
+Commit:        9519886a1c1a8d0ab169fc3496d99cacd050f7bf
+Build args:    cargo build --release --target wasm32v1-none
+Submitted by: GA3E4QUBCD6VNFM7M4KJHPWN5N4WDAQTDBXMROVSFKM3STSO35IBA3TN
+Ledger:        4951304
+```
+
+**Lookup command:**
+```
+$ node cli/dist/index.js lookup \
+  --hash 42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5
+- Looking up hash 42b88b61faa5bbab... on testnet
+✔ Verification record found!
+
+WASM hash:     42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5
+Source repo:   https://github.com/eogenyi23-creator/soroban-verify
+Commit:        9519886a1c1a8d0ab169fc3496d99cacd050f7bf
+Build args:    cargo build --release --target wasm32v1-none
+Submitted by: GA3E4QUBCD6VNFM7M4KJHPWN5N4WDAQTDBXMROVSFKM3STSO35IBA3TN
+Ledger:        4951304
+```
+
+The registry contract is live and functional on testnet. The read path (check, lookup)
+works fully through the CLI. The write path (verify/submit) succeeds on-chain but the
+CLI's polling step throws an XDR compatibility error due to stellar-sdk v13.1.0 not
+fully supporting testnet protocol v29 — the transaction was confirmed by querying the
+chain directly. Upgrading stellar-sdk to v17+ would fix the polling error, but that is
+a separate change outside the four gaps addressed here.
