@@ -105,3 +105,17 @@ or multi-user machines, leaking the secret key. The env var is not.
   in `verify.ts` eliminated. All 19 CLI tests pass (13 in `hash.test.ts`, 6 in
   `commands.test.ts`).
   Addresses audit findings **B1**, **U1**, and **B18**.
+
+---
+
+## 2026-09-30 — Branch: web-lint-enforce
+
+**What changed:**
+- Removed `continue-on-error: true` from the "Lint" step in the "Web (Next.js)" CI job (`.github/workflows/ci.yml`)
+- Created `web/.eslintrc.json` with `{ "extends": "next/core-web-vitals" }` (the standard Next.js strict preset)
+- Confirmed `pnpm lint` passes with 0 errors
+
+**Why:**
+`continue-on-error: true` on the lint step means any lint failure — including rule regressions introduced in future PRs — would silently pass CI. With `eslint-config-next` already listed as a dev dependency and `pnpm lint` wired up in `package.json`, the only thing missing was the config file and the enforcement flag. No lint errors existed once the config was in place, so no source changes were needed.
+
+**Branch:** web-lint-enforce → main
