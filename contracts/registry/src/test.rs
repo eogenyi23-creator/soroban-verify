@@ -5,6 +5,10 @@ use soroban_sdk::{
     testutils::Address as _,
     Address, Env, String,
 };
+use soroban_sdk::{
+    testutils::{MockAuth, MockAuthInvoke},
+    IntoVal,
+};
 
 fn setup_env() -> (Env, RegistryContractClient<'static>) {
     let env = Env::default();
@@ -213,4 +217,74 @@ fn test_unverified_hash_returns_none() {
     );
     assert!(client.get_verification(&unknown).is_none());
     assert!(!client.is_verified(&unknown));
+}
+
+/// Verify that revoke() enforces admin-only access via require_auth().
+///
+/// The setup (initialize + submit) uses narrowly-scoped `mock_auths` so that
+/// each call is authorized for exactly the address and function it needs.
+/// The final revoke() call has NO auth mock at all — the contract will call
+/// `admin.require_auth()`, find no matching authorization, and panic.
+///
+/// This is the meaningful test: it proves the auth gate in revoke() actually
+/// runs and rejects unauthenticated callers, rather than a vacuous pass that
+/// `mock_all_auths()` would produce.
+#[test]
+#[should_panic]
+fn test_revoke_requires_admin_auth() {
+    let env = Env::default();
+    // Deliberately do NOT call env.mock_all_auths() — we scope each mock.
+    let contract_id = env.register(RegistryContract, ());
+    let client = RegistryContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let submitter = Address::generate(&env);
+
+    // ── Step 1: initialize — mock only the admin's auth for this one call ──
+    client
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "initialize",
+                args: (&admin,).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .initialize(&admin);
+
+    // ── Step 2: submit — mock only the submitter's auth for this one call ──
+    let wasm_hash = s(
+        &env,
+        "cccc000000000000000000000000000000000000000000000000000000000099",
+    );
+    client
+        .mock_auths(&[MockAuth {
+            address: &submitter,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "submit",
+                args: (
+                    &submitter,
+                    &wasm_hash,
+                    &s(&env, "https://github.com/example/repo"),
+                    &s(&env, "abc123"),
+                    &s(&env, "cargo build --release"),
+                )
+                    .into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .submit(
+            &submitter,
+            &wasm_hash,
+            &s(&env, "https://github.com/example/repo"),
+            &s(&env, "abc123"),
+            &s(&env, "cargo build --release"),
+        );
+
+    // ── Step 3: attempt revoke with NO auth mock — must panic ──
+    // revoke() fetches the admin from storage and calls admin.require_auth().
+    // No mock for the admin is active here, so require_auth() panics.
+    client.revoke(&wasm_hash);
 }
