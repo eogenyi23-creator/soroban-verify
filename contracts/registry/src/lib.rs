@@ -91,10 +91,10 @@ impl RegistryContract {
         submitter.require_auth();
 
         // Validate inputs.
-        if wasm_hash.len() == 0
-            || source_repo.len() == 0
-            || source_commit.len() == 0
-            || build_args.len() == 0
+        if wasm_hash.is_empty()
+            || source_repo.is_empty()
+            || source_commit.is_empty()
+            || build_args.is_empty()
         {
             return Err(RegistryError::InvalidInput);
         }
@@ -116,9 +116,11 @@ impl RegistryContract {
 
         // Store the verification record with a ~1-year TTL.
         env.storage().persistent().set(&key, &record);
-        env.storage()
-            .persistent()
-            .extend_ttl(&key, PERSISTENT_BUMP_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_BUMP_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
 
         // Update submitter index.
         let idx_key = DataKey::SubmitterIndex(submitter.clone());
@@ -136,20 +138,17 @@ impl RegistryContract {
         );
 
         // Bump total count.
-        let count: u32 = env
-            .storage()
-            .instance()
-            .get(&DataKey::Count)
-            .unwrap_or(0);
-        env.storage()
-            .instance()
-            .set(&DataKey::Count, &(count + 1));
+        let count: u32 = env.storage().instance().get(&DataKey::Count).unwrap_or(0);
+        env.storage().instance().set(&DataKey::Count, &(count + 1));
 
         // Emit event.
-        env.events().publish(
-            (symbol_short!("verified"), submitter),
-            wasm_hash,
-        );
+        // #[allow(deprecated)]: `Events::publish` is deprecated in favour of
+        // the `#[contractevent]` macro, but migrating to that macro changes the
+        // on-chain event format (a contract interface change). Deferring that
+        // migration to a versioned upgrade rather than changing it here.
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("verified"), submitter), wasm_hash);
 
         Ok(())
     }
@@ -183,16 +182,14 @@ impl RegistryContract {
         env.storage().persistent().remove(&key);
 
         // Decrement count (saturating to avoid underflow).
-        let count: u32 = env
-            .storage()
-            .instance()
-            .get(&DataKey::Count)
-            .unwrap_or(0);
+        let count: u32 = env.storage().instance().get(&DataKey::Count).unwrap_or(0);
         env.storage()
             .instance()
             .set(&DataKey::Count, &count.saturating_sub(1));
 
         // Emit event.
+        // #[allow(deprecated)]: same rationale as the `submit` publish call above.
+        #[allow(deprecated)]
         env.events()
             .publish((symbol_short!("revoked"), admin), wasm_hash);
 
@@ -237,10 +234,7 @@ impl RegistryContract {
 
     /// Return the total number of verified contracts in the registry.
     pub fn count(env: Env) -> u32 {
-        env.storage()
-            .instance()
-            .get(&DataKey::Count)
-            .unwrap_or(0)
+        env.storage().instance().get(&DataKey::Count).unwrap_or(0)
     }
 
     /// Return the current admin address.
