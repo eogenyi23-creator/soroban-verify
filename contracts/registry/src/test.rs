@@ -6,6 +6,10 @@ use soroban_sdk::{
     testutils::{MockAuth, MockAuthInvoke},
     IntoVal,
 };
+use soroban_sdk::{
+    testutils::{MockAuth, MockAuthInvoke},
+    IntoVal,
+};
 
 fn setup_env() -> (Env, RegistryContractClient<'static>) {
     let env = Env::default();
