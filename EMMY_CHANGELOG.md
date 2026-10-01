@@ -219,3 +219,15 @@ sdk vitest exit-1) were fixed in the same branch as they surfaced during the lin
 - All lint targets clean (sdk, cli, web)
 
 **Branch:** fix/cli-sdk-upgrade → not merged to main (awaiting PR approval)
+
+---
+
+## 2026-10-01 — Branch: fix/dedup-test-imports
+
+**What changed:**
+- Removed the second, exact-duplicate `use soroban_sdk::{ testutils::{MockAuth, MockAuthInvoke}, IntoVal }` block from `contracts/registry/src/test.rs`
+
+**Why:**
+The file contained two back-to-back identical `use` blocks importing `MockAuth`, `MockAuthInvoke`, and `IntoVal` from `soroban_sdk`. This caused three `E0252` ("name defined multiple times") compile errors that prevented the "Contract (Rust)" CI job from compiling at all (exit code 101). Root cause: a bad merge conflict resolution in the `revoke-auth-test` PR left behind a duplicate of the newly added import block. This is a compile-blocking bug — no contract logic, test logic, or behavior was affected in any way. The fix is a two-line deletion of the redundant block. All 11 tests continue to pass, and `cargo fmt --check` and `cargo clippy` both exit clean.
+
+**Branch:** fix/dedup-test-imports → main (awaiting PR merge)
