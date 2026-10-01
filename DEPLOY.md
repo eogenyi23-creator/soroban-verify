@@ -344,33 +344,51 @@ local WASM file. The transaction succeeded on-chain, but the CLI's polling step 
 protocol v29. The record was confirmed on-chain via direct contract invocation
 (see "Verify on-chain" block below).
 
-**SDK upgrade to v17.2.0 — polling fix confirmed:**
+**Submit verification (stellar-sdk v17.2.0 — polling fix confirmed, real CLI output):**
 
-After upgrading `@stellar/stellar-sdk` to `17.2.0` and fixing xdr accessor calls in
-`sdk/src/client.ts`, the full verify flow completes without the XDR error. Confirmed
-by a direct SDK-level submission to testnet:
-
-```
-txHash: b051ebf193838206fc7d14dc4f6850ddc66e332c377b81a0b31f58987610e1a6
-Polling completed — status: SUCCESS (no XDR error)
-```
-
-Running `verify` against the existing contract now correctly detects the prior
-submission and exits cleanly:
+After upgrading to v17.2.0 and fixing the xdr accessor calls, the full CLI `verify`
+flow was re-run against a new WASM hash (not previously registered) to prove the
+polling step completes through the actual compiled CLI binary:
 
 ```
 $ node cli/dist/index.js verify \
   --contract CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO \
   --source https://github.com/eogenyi23-creator/soroban-verify \
-  --commit 9519886a1c1a8d0ab169fc3496d99cacd050f7bf \
-  --build-args "cargo build --release --target wasm32v1-none"
+  --commit fix-cli-sdk-upgrade-e2e-verify \
+  --build-args "cargo build --release --target wasm32v1-none" \
+  --wasm /tmp/test_unique.wasm
 
 🔍 soroban-verify — submitting verification on testnet
 
 - Resolving WASM hash...
-✔ WASM hash (on-chain): 42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5
+✔ WASM hash (local): 49b3149b5e0ef7d62546cca93ab49710dc79ddd83e08db4df47368d8e2f20acc
 - Checking existing registry entry...
-⚠ A verification for this WASM hash already exists. Use 'stellar-verify lookup --hash 42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5' to view it.
+✔ No existing record found — proceeding.
+- Submitting verification to the registry...
+✔ Verification submitted!
+
+Transaction: 4feda316bfa284896cdff01616a00dc8fd04a413ab6469c6bc2653ebb03fc2f0
+WASM hash:    49b3149b5e0ef7d62546cca93ab49710dc79ddd83e08db4df47368d8e2f20acc
+Source:       https://github.com/eogenyi23-creator/soroban-verify
+Commit:       fix-cli-sdk-upgrade-e2e-verify
+```
+
+Exit 0. Polling step completed successfully — no `Bad union switch: 4`.
+
+**Lookup confirms on-chain record:**
+
+```
+$ node cli/dist/index.js lookup \
+  --hash 49b3149b5e0ef7d62546cca93ab49710dc79ddd83e08db4df47368d8e2f20acc
+- Looking up hash 49b3149b5e0ef7d6... on testnet
+✔ Verification record found!
+
+WASM hash:     49b3149b5e0ef7d62546cca93ab49710dc79ddd83e08db4df47368d8e2f20acc
+Source repo:   https://github.com/eogenyi23-creator/soroban-verify
+Commit:        fix-cli-sdk-upgrade-e2e-verify
+Build args:    cargo build --release --target wasm32v1-none
+Submitted by: GDBX76SRLJDANJWADAOCAZBMGCLTTE42JAFH4IZBIEA6DXJKPTEK7RP5
+Ledger:        4958758
 ```
 
 **Verify on-chain (confirmed via stellar CLI):**
