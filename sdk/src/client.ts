@@ -156,7 +156,8 @@ export async function resolveWasmHash(
     new xdr.LedgerKeyContractData({
       contract: new Address(contractAddress).toScAddress(),
       key: xdr.ScVal.scvLedgerKeyContractInstance(),
-      durability: xdr.ContractDataDurability.persistent(),
+      // v17: ContractDataDurability enum values are singletons — no call ()
+      durability: xdr.ContractDataDurability.persistent,
     })
   );
 
@@ -166,8 +167,17 @@ export async function resolveWasmHash(
   }
 
   const entry = response.entries[0].val;
-  const contractData = entry.contractData();
-  const instance = contractData.val().instance();
-  const wasmHash = instance.executable().wasmHash();
-  return Buffer.from(wasmHash).toString("hex");
+  // v17 xdr: union arm accessors are now readonly properties, not method calls.
+  // LedgerEntryDataContractData.contractData, ContractDataEntry.val (ScVal),
+  // ScValContractInstance.instance (ScContractInstance),
+  // ScContractInstance.executable (ContractExecutable union),
+  // ContractExecutableWasm.wasmHash (Hash) — all properties, not functions.
+  //
+  // Hash wraps a 32-byte Uint8Array with `static readonly encoding = "hex"`,
+  // so Hash.toString() returns the 64-char lowercase hex string directly.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contractData = (entry as any).contractData as {
+    val: { instance: { executable: { wasmHash: { toString(): string } } } };
+  };
+  return contractData.val.instance.executable.wasmHash.toString();
 }

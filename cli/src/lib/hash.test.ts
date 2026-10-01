@@ -1,4 +1,4 @@
-/**
+/** 
  * Unit tests for cli/src/lib/hash.ts
  *
  * These tests verify that:

@@ -1,6 +1,7 @@
 {
   "name": "@soroban-verify/sdk",
   "version": "0.1.0",
+  "type": "module",
   "description": "Shared TypeScript types and Stellar RPC helpers for soroban-verify",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,7 +11,7 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
-    "@stellar/stellar-sdk": "13.1.0"
+    "@stellar/stellar-sdk": "17.2.0"
   },
   "devDependencies": {
     "@types/node": "20.14.0",

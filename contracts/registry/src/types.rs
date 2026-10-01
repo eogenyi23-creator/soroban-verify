@@ -1,6 +1,6 @@
 //! Storage key definitions and data types for the soroban-verify registry contract.
 
-use soroban_sdk::{contracttype, contracterror, Address, String};
+use soroban_sdk::{contracterror, contracttype, Address, String};
 
 /// A single source-verification record stored on-chain.
 ///
@@ -33,12 +33,6 @@ pub enum DataKey {
     Admin,
     /// Total number of verifications stored.
     Count,
-}
-
-/// Events emitted by the registry contract.
-pub mod events {
-    pub const VERIFIED: &str = "verified";
-    pub const REVOKED: &str = "revoked";
 }
 
 /// Errors returned by the registry contract.
