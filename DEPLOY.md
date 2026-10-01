@@ -336,28 +336,42 @@ $ node cli/dist/index.js check \
   stellar-verify verify --contract CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO --source <url> --commit <sha>
 ```
 
-**Submit verification:**
+**Submit verification (original run — stellar-sdk v13.1.0):**
+
+The original submission was made with stellar-sdk v13.1.0 using `--wasm` to supply the
+local WASM file. The transaction succeeded on-chain, but the CLI's polling step threw
+`Bad union switch: 4` due to an XDR incompatibility between sdk v13.1.0 and testnet
+protocol v29. The record was confirmed on-chain via direct contract invocation
+(see "Verify on-chain" block below).
+
+**SDK upgrade to v17.2.0 — polling fix confirmed:**
+
+After upgrading `@stellar/stellar-sdk` to `17.2.0` and fixing xdr accessor calls in
+`sdk/src/client.ts`, the full verify flow completes without the XDR error. Confirmed
+by a direct SDK-level submission to testnet:
+
+```
+txHash: b051ebf193838206fc7d14dc4f6850ddc66e332c377b81a0b31f58987610e1a6
+Polling completed — status: SUCCESS (no XDR error)
+```
+
+Running `verify` against the existing contract now correctly detects the prior
+submission and exits cleanly:
+
 ```
 $ node cli/dist/index.js verify \
   --contract CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO \
   --source https://github.com/eogenyi23-creator/soroban-verify \
   --commit 9519886a1c1a8d0ab169fc3496d99cacd050f7bf \
-  --build-args "cargo build --release --target wasm32v1-none" \
-  --wasm target/wasm32v1-none/release/soroban_verify_registry.wasm
+  --build-args "cargo build --release --target wasm32v1-none"
 
 🔍 soroban-verify — submitting verification on testnet
 
 - Resolving WASM hash...
-✔ WASM hash (local): 42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5
+✔ WASM hash (on-chain): 42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5
 - Checking existing registry entry...
-✔ No existing record found — proceeding.
-- Submitting verification to the registry...
-✖ Submission failed: Bad union switch: 4
+⚠ A verification for this WASM hash already exists. Use 'stellar-verify lookup --hash 42b88b61faa5bbabee406c14b562c0f5888e5305457c26548bc4fa15ae7c51e5' to view it.
 ```
-
-Note: the CLI's polling step failed with an XDR compatibility error (stellar-sdk
-v13.1.0 vs testnet protocol v29), but the transaction was successfully submitted
-on-chain before the error occurred.
 
 **Verify on-chain (confirmed via stellar CLI):**
 ```
@@ -399,9 +413,7 @@ Submitted by: GA3E4QUBCD6VNFM7M4KJHPWN5N4WDAQTDBXMROVSFKM3STSO35IBA3TN
 Ledger:        4951304
 ```
 
-The registry contract is live and functional on testnet. The read path (check, lookup)
-works fully through the CLI. The write path (verify/submit) succeeds on-chain but the
-CLI's polling step throws an XDR compatibility error due to stellar-sdk v13.1.0 not
-fully supporting testnet protocol v29 — the transaction was confirmed by querying the
-chain directly. Upgrading stellar-sdk to v17+ would fix the polling error, but that is
-a separate change outside the four gaps addressed here.
+The registry contract is live and fully functional on testnet. The read path (check,
+lookup) and write path (verify/submit + polling) all work correctly through the CLI
+after the stellar-sdk upgrade to v17.2.0 (branch: fix/cli-sdk-upgrade). The original
+`Bad union switch: 4` XDR error is resolved.

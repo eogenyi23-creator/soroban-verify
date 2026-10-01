@@ -166,3 +166,56 @@ DEPLOY.md described the deployment steps in detail but contained no evidence tha
 **Note on SDK compatibility:** The CLI's `verify` command's polling step throws `Bad union switch: 4` after submitting — this is an XDR compatibility mismatch between stellar-sdk v13.1.0 (what the repo pins) and testnet protocol v29. The transaction itself succeeded on-chain (verified by querying the chain directly). The read path (`check`, `lookup`) works correctly through the CLI. Fixing the SDK version is a separate concern outside the four gaps addressed here.
 
 **Branch:** testnet-deployment → main
+
+---
+
+## 2026-10-01 — Branch: fix/cli-sdk-upgrade
+
+**What changed:**
+- Upgraded `@stellar/stellar-sdk` from `13.1.0` to `17.2.0` in both `cli/package.json` and `sdk/package.json`
+- Updated `engines.node` in `cli/package.json` from `>=20` to `>=22` (required by stellar-sdk v17)
+- Added `"type": "module"` to `sdk/package.json` (required: stellar-sdk v17 is ESM-only)
+- Fixed three breaking xdr API changes in `sdk/src/client.ts` (`resolveWasmHash` function):
+  1. `xdr.ContractDataDurability.persistent()` → `xdr.ContractDataDurability.persistent`
+     (v17: enum values are singletons, not factory calls)
+  2. `entry.contractData()` / `.val()` / `.instance()` / `.executable()` / `.wasmHash()`
+     → property accesses `.contractData.val.instance.executable.wasmHash`
+     (v17: xdr union arm getters are readonly properties, not method calls)
+  3. `Buffer.from(wasmHash).toString("hex")` → `wasmHash.toString()`
+     (v17: `Hash` is a `BytesValue` wrapper with `encoding = "hex"`; `Buffer.from()` rejects it)
+- Approved build scripts (`esbuild`, `unrs-resolver`) in `pnpm-workspace.yaml`
+- Added `eslint` as a direct `devDependency` to `cli/package.json` and `sdk/package.json`
+  (was missing — lint script silently failed with "eslint: not found")
+- Added `cli/.eslintrc.json` and `sdk/.eslintrc.json` (pre-existing gap — both packages had
+  a lint script but no ESLint config file)
+- Added `sdk/vitest.config.ts` with `passWithNoTests: true` (pre-existing gap — sdk has no
+  unit tests; vitest was exiting with code 1 and failing CI)
+- No changes to `cli/src/commands/verify.ts`, `check.ts`, or `lookup.ts`
+
+**Why:**
+The `verify` command's polling step threw `Bad union switch: 4` after successfully
+submitting a transaction. Root cause: stellar-sdk v13.1.0's XDR parser didn't support
+the testnet protocol v29 response format. Upgrading to v17.2.0 fixes the XDR parsing.
+Three additional pre-existing CI failures (missing eslint binary, missing eslint configs,
+sdk vitest exit-1) were fixed in the same branch as they surfaced during the lint/test run.
+
+**Breaking API changes encountered (v13 → v17):**
+- `@stellar/stellar-base` merged into `@stellar/stellar-sdk` (no separate package)
+- Node.js `>=22.12.0` required (up from `>=20`)
+- ESM-only distribution — consuming packages need `"type": "module"`
+- xdr namespace fully rewritten: union arms are discriminated class properties,
+  enum values are singletons, `Hash` type instead of raw `Uint8Array`
+- `rpc.Api.isSimulationError`, `rpc.assembleTransaction`, `TransactionBuilder`,
+  `server.sendTransaction`, `server.getTransaction` — **unchanged**, no edits needed
+
+**E2E verification (all against CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO):**
+- `check` → existing verified record returned correctly; WASM hash resolves via v17 xdr
+- `verify` (existing hash) → resolves on-chain hash, detects existing record, exits clean
+- Polling fix confirmed: txHash `b051ebf193838206fc7d14dc4f6850ddc66e332c377b81a0b31f58987610e1a6`
+  returned `SUCCESS` with no XDR error
+- `lookup` → record found, all fields correct
+- CLI test suite: 19/19 pass (13 `hash.test.ts`, 6 `commands.test.ts`)
+- Web test suite: 12/12 pass
+- All lint targets clean (sdk, cli, web)
+
+**Branch:** fix/cli-sdk-upgrade → not merged to main (awaiting PR approval)
