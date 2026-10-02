@@ -1,4 +1,4 @@
-# Contributing to soroban-verify
+# Contributing to soroban-verify 
 
 Thank you for your interest in contributing to `soroban-verify`! This project acts as an on-chain source verification registry for Soroban smart contracts on the Stellar network.
 
