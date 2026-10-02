@@ -284,7 +284,7 @@ soroban-verify/
 │       ├── bug_report.md
 │       └── feature_request.md
 ├── Cargo.toml               # Rust workspace
-├── EMMY_CHANGELOG.md        # Append-only change log
+├── CHANGELOG.md        # Append-only change log
 └── README.md
 ```
 
