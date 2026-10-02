@@ -21,7 +21,7 @@ This project is managed as a set of decoupled workspaces:
 ### Prerequisites
 * **Rust:** With the `wasm32v1-none` toolchain compilation target installed.
 * **Stellar CLI:** For manual contract deployment or evaluation testing.
-* **Node.js 20+** along with **pnpm 8+**.
+* **Node.js 22.12+** along with **pnpm 9+**.
 
 ### Workspace Installation
 1. Fork the repository on GitHub, then clone your fork locally:

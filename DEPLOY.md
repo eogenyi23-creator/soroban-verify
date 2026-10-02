@@ -16,7 +16,7 @@ rustup target add wasm32v1-none
 # 2. Stellar CLI (latest release)
 cargo install --locked stellar-cli --features opt
 
-# 3. Node.js 20+ and pnpm
+# 3. Node.js 22.12+ and pnpm 9+
 npm install -g pnpm
 ```
 
@@ -25,7 +25,7 @@ Verify:
 ```bash
 rustc --version                  # rustc 1.xx.x
 stellar --version                # stellar x.x.x
-node --version                   # v20.x.x
+node --version                   # v22.12.0 or newer
 ```
 
 ## Step 1: Clone and build the WASM

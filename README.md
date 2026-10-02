@@ -294,8 +294,8 @@ soroban-verify/
 
 - [Rust](https://rustup.rs/) + `wasm32v1-none` target
 - [Stellar CLI](https://developers.stellar.org/docs/tools/cli) (`stellar`)
-- [Node.js](https://nodejs.org/) 20+
-- [pnpm](https://pnpm.io/) 8+
+- [Node.js](https://nodejs.org/) 22.12+
+- [pnpm](https://pnpm.io/) 9+
 
 ### Build the registry contract
 

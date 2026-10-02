@@ -9,8 +9,8 @@ Thanks for your interest in contributing! This project is part of the Stellar Wa
   rustup target add wasm32v1-none
   ```
 - [Stellar CLI](https://developers.stellar.org/docs/tools/cli) (`stellar`)
-- [Node.js](https://nodejs.org/) 20+
-- [pnpm](https://pnpm.io/) 8+
+- [Node.js](https://nodejs.org/) 22.12+
+- [pnpm](https://pnpm.io/) 9+
 
 ## Project structure
 
