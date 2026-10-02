@@ -1,5 +1,5 @@
 # DEPLOY.md — Deploying soroban-verify to Stellar Testnet
-
+ 
 This guide walks you through deploying the registry contract to Stellar testnet
 from scratch. No live contract IDs are provided here — run the steps below and
 you will get your own.
