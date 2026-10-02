@@ -5,7 +5,7 @@
  * This component retrieves them and renders the function signatures.
  */
 
-import { contract } from "@stellar/stellar-sdk";
+import { contract, xdr } from "@stellar/stellar-sdk";
 
 interface Props {
   address: string;
@@ -22,11 +22,65 @@ const PASSPHRASES: Record<string, string> = {
   mainnet: "Public Global Stellar Network ; September 2015",
 };
 
-interface ParsedFunction {
+export interface ParsedFunction {
   name: string;
   doc: string;
   inputs: Array<{ name: string; type: string }>;
   outputs: string[];
+}
+
+/**
+ * Parse a flat list of v17 ScSpecEntry objects into ParsedFunction descriptors.
+ *
+ * Exported so it can be unit-tested without network access.
+ *
+ * v17 type facts (verified from installed @stellar/stellar-sdk 17.2.0 types):
+ *
+ *   xdr.ScSpecEntry is a discriminated union of concrete classes.
+ *   Each variant has:
+ *     readonly type: ScSpecEntryVariantName   — typed string literal property,
+ *                                               no cast required for narrowing
+ *     get value()                             — returns the variant payload
+ *
+ *   When entry.type === "scSpecEntryFunctionV0", TypeScript narrows to
+ *   xdr.ScSpecEntryFunctionV0 and .value returns xdr.ScSpecFunctionV0 with:
+ *     readonly name: XdrString    — .toString() yields the function name
+ *     readonly doc:  XdrString    — .toString() yields the doc string
+ *     readonly inputs: xdr.ScSpecFunctionInputV0[]  each with:
+ *         readonly name: XdrString
+ *         readonly type: xdr.ScSpecTypeDef   — .type is a ScSpecTypeDefVariantName
+ *                                              string (e.g. "scSpecTypeU32")
+ *     readonly outputs: xdr.ScSpecTypeDef[]  each with:
+ *         readonly type: ScSpecTypeDefVariantName
+ *
+ *   This was cross-checked against:
+ *     lib/esm/xdr/generated/sc-spec-entry.d.ts        (union + variants)
+ *     lib/esm/xdr/generated/sc-spec-function-v0.d.ts  (name/doc/inputs/outputs)
+ *     lib/esm/xdr/generated/sc-spec-function-input-v0.d.ts
+ *     lib/esm/xdr/generated/sc-spec-type-def.d.ts     (.type string property)
+ *     lib/esm/xdr/values/xdr-string.d.ts              (.toString())
+ */
+export function parseFunctions(entries: xdr.ScSpecEntry[]): ParsedFunction[] {
+  const functions: ParsedFunction[] = [];
+  for (const entry of entries) {
+    // entry.type is a real typed property — TypeScript narrows here.
+    if (entry.type === "scSpecEntryFunctionV0") {
+      // .value is the typed getter returning xdr.ScSpecFunctionV0.
+      const fn = entry.value;
+      functions.push({
+        name: fn.name.toString(),
+        doc: fn.doc.toString().trim(),
+        inputs: fn.inputs.map((inp) => ({
+          name: inp.name.toString(),
+          // inp.type is xdr.ScSpecTypeDef; .type is the variant-name string
+          type: inp.type.type,
+        })),
+        // out.type is the ScSpecTypeDefVariantName string
+        outputs: fn.outputs.map((out) => out.type),
+      });
+    }
+  }
+  return functions;
 }
 
 async function fetchContractSpec(address: string, network: string): Promise<ParsedFunction[]> {
@@ -40,36 +94,14 @@ async function fetchContractSpec(address: string, network: string): Promise<Pars
       rpcUrl,
     });
 
-    // Extract spec entries from the client spec.
-    // v17: entry.type is a string discriminant; entry.value is the raw XDR
-    // object with .name, .doc, .inputs, .outputs as readonly properties.
-    // The v17 TypeScript types do not expose .value directly, so we cast via
-    // unknown — no any is needed at the declaration sites.
+    // contract.Client.from() returns a Client whose .spec is a contract.Spec.
+    // contract.Spec exposes .entries: xdr.ScSpecEntry[] — the v17 discriminated union.
+    // The TypeScript signature of Client does not expose .spec publicly, so we
+    // cast via unknown once at the boundary.
     const spec = (client as unknown as { spec: contract.Spec }).spec;
-    const functions: ParsedFunction[] = [];
-
-    for (const entry of spec.entries) {
-      if (entry.type === "scSpecEntryFunctionV0") {
-        const fn = (entry as unknown as { value: {
-          name: { toString(): string };
-          doc: { toString(): string };
-          inputs: Array<{ name: { toString(): string }; type: { type: string } }>;
-          outputs: Array<{ type: string }>;
-        } }).value;
-        functions.push({
-          name: fn.name.toString(),
-          doc: fn.doc.toString().trim(),
-          inputs: fn.inputs.map((inp) => ({
-            name: inp.name.toString(),
-            type: inp.type.type,
-          })),
-          outputs: fn.outputs.map((out) => out.type),
-        });
-      }
-    }
-
-    return functions;
-  } catch {
+    return parseFunctions(spec.entries);
+  } catch (err) {
+    console.error("ContractSpec: failed to load spec for", address, err);
     return [];
   }
 }

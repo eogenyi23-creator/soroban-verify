@@ -308,3 +308,95 @@ All other verification commands exited clean:
 `contracts/registry/src/test.rs` line 2 contained a space character on what
 should be an empty line between `#![cfg(test)]` and the first `use` statement.
 `cargo fmt --check` flagged this; the space was removed.
+
+---
+
+## Branch: fix/docs-node-version
+
+**What changed:**
+
+- `DEPLOY.md` (Prerequisites block): "Node.js 20+" → "Node.js 22.12+"; the
+  example `node --version` output `v20.x.x` → `v22.12.0 or newer`. The
+  `# 3. Node.js 20+ and pnpm` comment also updated to "Node.js 22.12+ and pnpm 9+".
+- `CONTRIBUTING.md` (root, Prerequisites bullet): "Node.js 20+ along with pnpm 8+"
+  → "Node.js 22.12+ along with pnpm 9+".
+- `README.md` (Getting Started prerequisites): "Node.js 20+" → "Node.js 22.12+";
+  "pnpm 8+" → "pnpm 9+".
+- `docs/contributing.md` (Prerequisites list): "Node.js 20+" → "Node.js 22.12+";
+  "pnpm 8+" → "pnpm 9+".
+- `package.json` (root): `engines.node` `>=22` → `>=22.12.0`.
+- `cli/package.json`: `engines.node` `>=22` → `>=22.12.0`.
+- `sdk/package.json` and `web/package.json`: no `engines` field was present;
+  none added, per task scope.
+- `web/src/components/ContractSpec.tsx`: bare `catch { return []; }` replaced
+  with `catch (err) { console.error("ContractSpec: failed to load spec for",
+  address, err); return []; }`. The parsing logic was also extracted into an
+  exported `parseFunctions(entries: xdr.ScSpecEntry[])` helper so it can be
+  unit-tested without network access. The `unknown` casts in the previous
+  version were removed: `xdr.ScSpecEntry` is a real discriminated union type
+  exported from `@stellar/stellar-sdk` via the `xdr` namespace, so TypeScript
+  narrows correctly after the `entry.type === "scSpecEntryFunctionV0"` guard —
+  no cast is needed. See type verification notes below.
+- `web/src/components/ContractSpec.test.ts` (new file): 10 unit tests for
+  `parseFunctions` using real `xdr.ScSpecFunctionV0`, `xdr.ScSpecEntry`, and
+  `xdr.ScSpecTypeDef` objects constructed from the installed stellar-sdk 17.2.0.
+  No mocks, no network. Tests cover: empty input, non-function entries skipped,
+  zero-arg void function, one-input/one-output function, multiple mixed-type
+  inputs, doc-string trimming, multiple entries in order, mixed function+struct
+  entries, and direct checks that `.type` and `.value` are properties (not v13
+  method calls).
+
+**Why:**
+
+The docs still said Node.js 20 and pnpm 8, but the codebase requires Node
+>=22.12.0 (stellar-sdk v17 minimum) and pnpm >=9 (CI and root engines). The
+`engines.node` field said `>=22` rather than the precise `>=22.12.0` that
+CHANGELOG.md already documented. The `ContractSpec` catch block was swallowing
+errors silently, which would hide a stellar-sdk API mismatch from CI and from
+log analysis.
+
+**v17 type verification (no network needed):**
+
+The following was confirmed by reading the installed type definitions in
+`node_modules/@stellar/stellar-sdk/lib/esm/xdr/generated/`:
+
+- `xdr.ScSpecEntry` is a proper TypeScript discriminated union
+  (`ScSpecEntryFunctionV0 | ScSpecEntryUdtStructV0 | …`) exported via the
+  `xdr` namespace from the top-level `@stellar/stellar-sdk` package.
+- `ScSpecEntryFunctionV0.type` is `readonly type: "scSpecEntryFunctionV0"` —
+  a real string-literal property. TypeScript narrows after an `=== ` check;
+  no cast is required.
+- `ScSpecEntryFunctionV0.value` is a real `get value(): ScSpecFunctionV0`
+  getter (not a method call).
+- `ScSpecFunctionV0` has `readonly name: XdrString`, `readonly doc: XdrString`,
+  `readonly inputs: ScSpecFunctionInputV0[]`, `readonly outputs: ScSpecTypeDef[]`
+  — all readonly properties, not method calls.
+- `XdrString.toString()` returns the string — correct.
+- `ScSpecFunctionInputV0` has `readonly name: XdrString` and
+  `readonly type: ScSpecTypeDef`.
+- `ScSpecTypeDef.type` is `readonly type: ScSpecTypeDefVariantName` — a string
+  literal union (e.g. `"scSpecTypeU32"`, `"scSpecTypeBool"`) — correct for
+  rendering as the type label in the ABI UI.
+
+What cannot be verified without network access: whether `contract.Client.from()`
+successfully fetches the spec for a live testnet contract and that the parsed
+function names and types match what the registry contract actually declares.
+That requires a live RPC connection to testnet. The 10 unit tests verify the
+parsing logic against constructed-in-memory XDR objects only.
+
+**Real test counts (run 2026-10-02):**
+
+| Package | Command | Result |
+|---|---|---|
+| `sdk` | `pnpm test` | **9 passed** (1 file: `client.test.ts`) |
+| `cli` | `pnpm test` | **19 passed** (2 files: `hash.test.ts` 13, `commands.test.ts` 6) |
+| `web` | `pnpm test` | **22 passed** (2 files: `ContractSpec.test.ts` 10, `SafeLink.test.ts` 12) |
+
+All verification commands exited clean:
+- `pnpm install --frozen-lockfile` — exit 0
+- `pnpm -r build` — exit 0
+- `pnpm -r lint` — exit 0
+- `pnpm -r test` — exit 0
+- `grep -rn "Node.js 20|node 20|v20|pnpm 8" --include=*.md . --exclude-dir=node_modules` — exit 1 (no matches)
+
+**Branch:** fix/docs-node-version
