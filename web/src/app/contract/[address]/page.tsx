@@ -20,7 +20,7 @@ export default async function ContractPage({ params }: Props) {
   try {
     const rpcUrl = process.env.STELLAR_RPC_URL ?? "https://soroban-testnet.stellar.org";
     const server = new rpc.Server(rpcUrl, { allowHttp: false });
-    wasmHash = await resolveWasmHash(address, server as any);
+    wasmHash = await resolveWasmHash(address, server);
 
     const client = getRegistryClient(network);
     verificationResult = await client.getVerification(wasmHash);

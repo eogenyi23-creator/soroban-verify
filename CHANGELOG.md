@@ -19,7 +19,7 @@ flag meant the CI test suite could pass vacuously with no test files at all.
 The tests prove hash computation is correct, deterministic, and handles edge
 cases (empty buffer, missing file, Uint8Array input).
 
-**Branch:** feat/tests → main (awaiting PR merge)
+**Branch:** feat/tests → main (merged)
 
 ---
 
@@ -38,7 +38,7 @@ verification flow looks like. The Stellar Expert comparison makes the project's
 unique value proposition (on-chain records, independent re-verification,
 programmatic access) explicit.
 
-**Branch:** feat/docs → main (awaiting PR merge)
+**Branch:** feat/docs → main (merged)
 
 ---
 
@@ -55,7 +55,7 @@ specifically: without a pinned toolchain, two developers building the same
 commit can produce different WASM hashes, undermining the entire premise of
 source verification.
 
-**Branch:** feat/deploy → main (awaiting PR merge)
+**Branch:** feat/deploy → main (merged)
 
 ---
 
@@ -165,6 +165,8 @@ DEPLOY.md described the deployment steps in detail but contained no evidence tha
 
 **Note on SDK compatibility:** The CLI's `verify` command's polling step throws `Bad union switch: 4` after submitting — this is an XDR compatibility mismatch between stellar-sdk v13.1.0 (what the repo pins) and testnet protocol v29. The transaction itself succeeded on-chain (verified by querying the chain directly). The read path (`check`, `lookup`) works correctly through the CLI. Fixing the SDK version is a separate concern outside the four gaps addressed here.
 
+**Polling issue resolved in fix/cli-sdk-upgrade.**
+
 **Branch:** testnet-deployment → main
 
 ---
@@ -218,7 +220,7 @@ sdk vitest exit-1) were fixed in the same branch as they surfaced during the lin
 - Web test suite: 12/12 pass
 - All lint targets clean (sdk, cli, web)
 
-**Branch:** fix/cli-sdk-upgrade → not merged to main (awaiting PR approval)
+**Branch:** fix/cli-sdk-upgrade → main (merged)
 
 ---
 
@@ -230,4 +232,79 @@ sdk vitest exit-1) were fixed in the same branch as they surfaced during the lin
 **Why:**
 The file contained two back-to-back identical `use` blocks importing `MockAuth`, `MockAuthInvoke`, and `IntoVal` from `soroban_sdk`. This caused three `E0252` ("name defined multiple times") compile errors that prevented the "Contract (Rust)" CI job from compiling at all (exit code 101). Root cause: a bad merge conflict resolution in the `revoke-auth-test` PR left behind a duplicate of the newly added import block. This is a compile-blocking bug — no contract logic, test logic, or behavior was affected in any way. The fix is a two-line deletion of the redundant block. All 11 tests continue to pass, and `cargo fmt --check` and `cargo clippy` both exit clean.
 
-**Branch:** fix/dedup-test-imports → main (awaiting PR merge)
+**Branch:** fix/dedup-test-imports → main (merged)
+
+---
+
+## Resubmission audit pass — 2026-10-02
+
+### Rust toolchain
+
+`rust-toolchain.toml` and the "Contract (Rust)" CI job both pin Rust **1.91.0**.
+The earlier `1.85.0` pin documented in feat/deploy was superseded: soroban-sdk
+27.0.6 requires a minimum of 1.91.0. Both files already reflected 1.91.0 at the
+time of this audit pass.
+
+### SDK unit tests
+
+`sdk/src/__tests__/client.test.ts` exists and contains **9 unit tests** covering
+the three v17 XDR breaking-change fixes in `resolveWasmHash`. The earlier remark
+in fix/cli-sdk-upgrade ("sdk has no unit tests") is now out of date — those tests
+were added in a subsequent commit and were already present on main.
+
+### SDK version alignment (all three packages now on 17.2.0)
+
+At the time of the fix/cli-sdk-upgrade entry, only `sdk/package.json` had been
+updated to `@stellar/stellar-sdk 17.2.0`. The `cli` and `web` packages were still
+pinned to 13.1.0, causing a dual-version lockfile and a latent runtime mismatch
+in `web` (which imports `rpc.Server` and `contract.Client` directly).
+
+Changes made in this pass:
+
+- `cli/package.json`: `@stellar/stellar-sdk` 13.1.0 → **17.2.0**; `engines.node` `>=20` → **>=22**
+- `web/package.json`: `@stellar/stellar-sdk` 13.1.0 → **17.2.0**
+- `package.json` (root): `engines.node` `>=20` → **>=22**
+- `web/src/components/ContractSpec.tsx`: updated `contract.Spec` iteration from
+  v13 method-call style (`entry.switch().name`, `fn.inputs()`) to v17 property
+  style (`entry.type`, `entry.value.inputs`) to match the renamed API
+- `web/src/app/contract/[address]/page.tsx`: removed `as any` cast on the
+  `rpc.Server` argument to `resolveWasmHash` — no longer needed because both
+  `web` and `sdk` now import the same v17 package
+- `pnpm-lock.yaml` regenerated: only one stellar-sdk version (17.2.0) remains
+
+### CI gaps closed
+
+The `.github/workflows/ci.yml` previously:
+- did not run `pnpm test` in the sdk package
+- did not run `pnpm test` in the web package
+- did not run `pnpm lint` in sdk or cli (only web)
+- used `pnpm install --no-frozen-lockfile` despite the project's premise being
+  reproducible builds
+
+All four gaps are now closed. The updated CI:
+- installs with `pnpm install --frozen-lockfile` in both jobs
+- runs `pnpm lint` for sdk and cli
+- runs `pnpm test` for sdk, cli, and web
+- keeps all existing Rust fmt, clippy, test, and build steps unchanged
+
+### Real test counts (run 2026-10-02)
+
+| Package | Command | Result |
+|---|---|---|
+| `sdk` | `pnpm test` | **9 passed** (1 file: `client.test.ts`) |
+| `cli` | `pnpm test` | **19 passed** (2 files: `hash.test.ts` 13, `commands.test.ts` 6) |
+| `web` | `pnpm test` | **12 passed** (1 file: `SafeLink.test.ts`) |
+| `contracts/registry` | `cargo test` | **11 passed** (0 failed, 0 ignored) |
+
+All other verification commands exited clean:
+- `pnpm install --frozen-lockfile` — exit 0
+- `pnpm -r build` — exit 0 (sdk, cli, web all build)
+- `pnpm -r lint` — exit 0 (sdk, cli, web all lint clean)
+- `cargo fmt --manifest-path contracts/registry/Cargo.toml --check` — exit 0
+- `cargo clippy --manifest-path contracts/registry/Cargo.toml --target wasm32v1-none -- -D warnings` — exit 0
+
+### Minor Rust fmt fix
+
+`contracts/registry/src/test.rs` line 2 contained a space character on what
+should be an empty line between `#![cfg(test)]` and the first `use` statement.
+`cargo fmt --check` flagged this; the space was removed.

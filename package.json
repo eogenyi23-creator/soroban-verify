@@ -10,7 +10,7 @@
     "lint": "pnpm -r lint"
   },
   "engines": {
-    "node": ">=20",
+    "node": ">=22",
     "pnpm": ">=9"
   }
 }

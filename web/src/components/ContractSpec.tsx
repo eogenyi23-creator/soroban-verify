@@ -41,20 +41,29 @@ async function fetchContractSpec(address: string, network: string): Promise<Pars
     });
 
     // Extract spec entries from the client spec.
-    const spec = (client as any).spec as contract.Spec;
+    // v17: entry.type is a string discriminant; entry.value is the raw XDR
+    // object with .name, .doc, .inputs, .outputs as readonly properties.
+    // The v17 TypeScript types do not expose .value directly, so we cast via
+    // unknown — no any is needed at the declaration sites.
+    const spec = (client as unknown as { spec: contract.Spec }).spec;
     const functions: ParsedFunction[] = [];
 
     for (const entry of spec.entries) {
-      if (entry.switch().name === "scSpecEntryFunctionV0") {
-        const fn = entry.functionV0();
+      if (entry.type === "scSpecEntryFunctionV0") {
+        const fn = (entry as unknown as { value: {
+          name: { toString(): string };
+          doc: { toString(): string };
+          inputs: Array<{ name: { toString(): string }; type: { type: string } }>;
+          outputs: Array<{ type: string }>;
+        } }).value;
         functions.push({
-          name: fn.name().toString(),
-          doc: fn.doc().toString().trim(),
-          inputs: fn.inputs().map((inp: any) => ({
-            name: inp.name().toString(),
-            type: inp.type().switch().name,
+          name: fn.name.toString(),
+          doc: fn.doc.toString().trim(),
+          inputs: fn.inputs.map((inp) => ({
+            name: inp.name.toString(),
+            type: inp.type.type,
           })),
-          outputs: fn.outputs().map((out: any) => out.switch().name),
+          outputs: fn.outputs.map((out) => out.type),
         });
       }
     }
