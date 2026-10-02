@@ -90,4 +90,4 @@ STELLAR_SECRET_KEY=S...
 
 ## License
 
-MIT. By contributing you agree your code will be licensed under MIT.
+MIT. By contributing you agree your code will be licensed under MIT. 
