@@ -356,7 +356,7 @@ stellar-verify verify \
 stellar-verify lookup --hash 6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b
 ```
 
-## Contributing
+## Contributing 
 
 See [docs/contributing.md](docs/contributing.md).
 
