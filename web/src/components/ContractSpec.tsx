@@ -1,6 +1,6 @@
 /**
  * ContractSpec — fetches and renders the on-chain Soroban contract spec (ABI).
- *
+ * 
  * Soroban stores every contract's interface types on-chain from day one.
  * This component retrieves them and renders the function signatures.
  */
