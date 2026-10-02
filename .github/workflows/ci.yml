@@ -130,3 +130,4 @@ jobs:
         env:
           REGISTRY_TESTNET_ID: ${{ vars.REGISTRY_TESTNET_ID || 'placeholder' }}
           REGISTRY_MAINNET_ID: ${{ vars.REGISTRY_MAINNET_ID || 'placeholder' }}
+ 
