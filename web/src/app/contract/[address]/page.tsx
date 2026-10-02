@@ -138,4 +138,4 @@ export default async function ContractPage({ params }: Props) {
       )}
     </div>
   );
-}
+} 
