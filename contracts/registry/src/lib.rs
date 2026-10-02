@@ -1,5 +1,5 @@
 //! soroban-verify Registry Contract
-//!
+//! 
 //! An on-chain registry that maps Soroban contract WASM hashes to their
 //! human-readable source verification records — Etherscan-style contract
 //! verification, native to Stellar.
