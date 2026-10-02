@@ -292,7 +292,7 @@ fn test_revoke_requires_admin_auth() {
             &s(&env, "cargo build --release"),
         );
 
-    // ── Step 3: attempt revoke with NO auth mock — must panic ──
+    // ── Step 3: attempt revoke with NO auth mock — must panic ── 
     // revoke() fetches the admin from storage and calls admin.require_auth().
     // No mock for the admin is active here, so require_auth() panics.
     client.revoke(&wasm_hash);
