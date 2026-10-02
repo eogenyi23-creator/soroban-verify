@@ -7,7 +7,7 @@
  * The test constructs real xdr.ScSpecEntry objects using the installed
  * @stellar/stellar-sdk 17.2.0 — no mocks or fakes are needed because
  * parseFunctions only needs the in-memory discriminated-union graph.
- *
+ * 
  * v17 property chain exercised (cross-checked from type definitions):
  *   entry.type === "scSpecEntryFunctionV0"   → TypeScript narrows
  *   entry.value                              → ScSpecFunctionV0
