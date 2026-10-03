@@ -1,7 +1,6 @@
 # CHANGELOG.md
 
-This file is the single source of truth for all changes made to this repository
-as part of the Stellar Wave Program resubmission audit. Entries are append-only
+This file is the single source of truth for all changes made to this repository. Entries are append-only
 and ordered from oldest to newest.
 
 ---
@@ -236,7 +235,7 @@ The file contained two back-to-back identical `use` blocks importing `MockAuth`,
 
 ---
 
-## Resubmission audit pass — 2026-10-02
+## Audit pass — 2026-10-02
 
 ### Rust toolchain
 
