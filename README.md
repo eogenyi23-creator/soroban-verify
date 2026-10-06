@@ -186,7 +186,7 @@ even a well-defined concept at the protocol level. This means:
 - The web explorer displays the submitter's address and submission timestamp
   alongside every record — always check these, and independently rebuild
   the source yourself for anything security-critical, rather than trusting
-  a "✅ Verified" badge alone.
+  a "✅ Source Claim Recorded" badge alone.
 
 ### Where this is headed
 A stronger model — cryptographic attestation via a signing key embedded in the

@@ -23,8 +23,8 @@ export default function HomePage() {
         />
         <FeatureCard
           icon="🔗"
-          title="Reproducible Builds"
-          desc="Link any contract address to its exact source commit and build arguments so anyone can re-verify."
+          title="Independent Re-verification"
+          desc="Link any contract address to its exact source commit and build arguments so anyone can re-verify independently."
         />
         <FeatureCard
           icon="⚡"
