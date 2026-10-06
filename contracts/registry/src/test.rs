@@ -310,7 +310,10 @@ fn test_submit_rejects_wasm_hash_wrong_length() {
     // 63 chars — one short
     let result = client.try_submit(
         &submitter,
-        &s(&env, "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5"),
+        &s(
+            &env,
+            "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5",
+        ),
         &s(&env, "https://github.com/example/repo"),
         &s(&env, "abc123"),
         &s(&env, "cargo build --release"),
@@ -320,7 +323,10 @@ fn test_submit_rejects_wasm_hash_wrong_length() {
     // 65 chars — one too many
     let result = client.try_submit(
         &submitter,
-        &s(&env, "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b0"),
+        &s(
+            &env,
+            "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b0",
+        ),
         &s(&env, "https://github.com/example/repo"),
         &s(&env, "abc123"),
         &s(&env, "cargo build --release"),
@@ -340,7 +346,10 @@ fn test_submit_rejects_wasm_hash_non_hex_chars() {
     // uppercase hex — not lowercase, so invalid
     let result = client.try_submit(
         &submitter,
-        &s(&env, "6DDB28E0980F643BB97350F7E3BACB0FF1FE74D846C6D4F2C625E766210FBB5B"),
+        &s(
+            &env,
+            "6DDB28E0980F643BB97350F7E3BACB0FF1FE74D846C6D4F2C625E766210FBB5B",
+        ),
         &s(&env, "https://github.com/example/repo"),
         &s(&env, "abc123"),
         &s(&env, "cargo build --release"),
@@ -350,7 +359,10 @@ fn test_submit_rejects_wasm_hash_non_hex_chars() {
     // 'g' is not a valid hex digit
     let result = client.try_submit(
         &submitter,
-        &s(&env, "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbbgg"),
+        &s(
+            &env,
+            "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbbgg",
+        ),
         &s(&env, "https://github.com/example/repo"),
         &s(&env, "abc123"),
         &s(&env, "cargo build --release"),
