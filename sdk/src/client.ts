@@ -186,7 +186,23 @@ export async function resolveWasmHash(
   // so Hash.toString() returns the 64-char lowercase hex string directly.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const contractData = (entry as any).contractData as {
-    val: { instance: { executable: { wasmHash: { toString(): string } } } };
+    val: {
+      instance: {
+        executable: {
+          type: string;
+          wasmHash?: { toString(): string };
+        };
+      };
+    };
   };
-  return contractData.val.instance.executable.wasmHash.toString();
+  const executable = contractData.val.instance.executable;
+  if (executable.type !== "contractExecutableWasm" || !executable.wasmHash) {
+    // Stellar Asset Contracts (SAC) use contractExecutableStellarAsset and have
+    // no wasmHash — they are built-in contracts with no user-deployed WASM.
+    throw new Error(
+      `Contract ${contractAddress} is a Stellar Asset Contract (SAC) or a built-in contract. ` +
+      `SACs do not have a WASM hash and cannot be registered in soroban-verify.`
+    );
+  }
+  return executable.wasmHash.toString();
 }

@@ -15,7 +15,7 @@ import { writeFile, rm, mkdir } from "fs/promises";
 import { createHash } from "crypto";
 import { join } from "path";
 import { tmpdir } from "os";
-import { computeLocalWasmHash, sha256Hex } from "./hash.js";
+import { computeLocalWasmHash, sha256Hex, normalizeHash } from "./hash.js";
 
 // ---------------------------------------------------------------------------
 // Test fixture: a minimal valid-ish WASM binary
@@ -139,5 +139,35 @@ describe("computeLocalWasmHash", () => {
     await writeFile(knownPath, knownBytes);
     const result = await computeLocalWasmHash(knownPath);
     expect(result).toBe(createHash("sha256").update(knownBytes).digest("hex"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// normalizeHash
+// ---------------------------------------------------------------------------
+
+describe("normalizeHash", () => {
+  it("strips a lowercase 0x prefix", () => {
+    expect(normalizeHash("0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"))
+      .toBe("abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890");
+  });
+
+  it("strips an uppercase 0X prefix", () => {
+    expect(normalizeHash("0XABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890"))
+      .toBe("abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890");
+  });
+
+  it("lowercases an uppercase hash with no prefix", () => {
+    expect(normalizeHash("ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890"))
+      .toBe("abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890");
+  });
+
+  it("leaves an already-normalized hash unchanged", () => {
+    const hash = "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b";
+    expect(normalizeHash(hash)).toBe(hash);
+  });
+
+  it("lowercases and strips 0x together", () => {
+    expect(normalizeHash("0xDEADBEEF")).toBe("deadbeef");
   });
 });

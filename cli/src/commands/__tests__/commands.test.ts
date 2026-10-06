@@ -32,9 +32,13 @@ vi.mock("@soroban-verify/sdk", () => ({
   },
 }));
 
-vi.mock("../../lib/hash.js", () => ({
-  computeLocalWasmHash: mocks.computeLocalWasmHash,
-}));
+vi.mock("../../lib/hash.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/hash.js")>();
+  return {
+    ...actual,
+    computeLocalWasmHash: mocks.computeLocalWasmHash,
+  };
+});
 
 describe("stellar-verify CLI commands", () => {
   const originalExit = process.exit;
@@ -102,6 +106,45 @@ describe("stellar-verify CLI commands", () => {
 
       expect(mocks.getVerification).toHaveBeenCalledWith("abcd1234");
     });
+
+    it("exits with error when the contract address is not found on-chain", async () => {
+      mocks.resolveWasmHash.mockRejectedValue(
+        new Error("Contract not found: CACVFG6MBJ9SPQ6C7NU...")
+      );
+
+      await expect(
+        checkCommand.parseAsync([
+          "node",
+          "stellar-verify",
+          "check",
+          "--contract",
+          "CACVFG6MBJ9SPQ6C7NU...",
+        ])
+      ).rejects.toThrow("process.exit(1)");
+
+      expect(mocks.getVerification).not.toHaveBeenCalled();
+    });
+
+    it("exits with error when the contract is a Stellar Asset Contract (SAC)", async () => {
+      mocks.resolveWasmHash.mockRejectedValue(
+        new Error(
+          "Contract CACVFG6MBJ9SPQ6C7NU... is a Stellar Asset Contract (SAC) or a built-in contract. " +
+          "SACs do not have a WASM hash and cannot be registered in soroban-verify."
+        )
+      );
+
+      await expect(
+        checkCommand.parseAsync([
+          "node",
+          "stellar-verify",
+          "check",
+          "--contract",
+          "CACVFG6MBJ9SPQ6C7NU...",
+        ])
+      ).rejects.toThrow("process.exit(1)");
+
+      expect(mocks.getVerification).not.toHaveBeenCalled();
+    });
   });
 
   describe("lookup command", () => {
@@ -143,6 +186,44 @@ describe("stellar-verify CLI commands", () => {
       ).rejects.toThrow("process.exit(1)");
 
       expect(mocks.getVerification).toHaveBeenCalledWith("abcd1234");
+    });
+  });
+
+  describe("lookup command — hash normalization", () => {
+    it("strips 0x prefix and lowercases before querying", async () => {
+      mocks.getVerification.mockResolvedValue({ verified: false, record: null });
+
+      await expect(
+        lookupCommand.parseAsync([
+          "node",
+          "stellar-verify",
+          "lookup",
+          "--hash",
+          "0xABCD1234ABCD1234ABCD1234ABCD1234ABCD1234ABCD1234ABCD1234ABCD1234",
+        ])
+      ).rejects.toThrow("process.exit(1)");
+
+      expect(mocks.getVerification).toHaveBeenCalledWith(
+        "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      );
+    });
+
+    it("lowercases an uppercase hash with no 0x prefix", async () => {
+      mocks.getVerification.mockResolvedValue({ verified: false, record: null });
+
+      await expect(
+        lookupCommand.parseAsync([
+          "node",
+          "stellar-verify",
+          "lookup",
+          "--hash",
+          "ABCD1234ABCD1234ABCD1234ABCD1234ABCD1234ABCD1234ABCD1234ABCD1234",
+        ])
+      ).rejects.toThrow("process.exit(1)");
+
+      expect(mocks.getVerification).toHaveBeenCalledWith(
+        "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+      );
     });
   });
 

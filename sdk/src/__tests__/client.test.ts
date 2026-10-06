@@ -228,6 +228,46 @@ describe("resolveWasmHash", () => {
 
       expect(result).toBe(WASM_HASH_A);
     });
+
+    it("throws a descriptive error for a Stellar Asset Contract (SAC)", async () => {
+      // A SAC ledger entry has contractExecutableStellarAsset, not contractExecutableWasm.
+      // Build a mock response where executable.type is NOT "contractExecutableWasm"
+      // so executable.wasmHash is undefined.
+      const sacExecutable = xdr.ContractExecutable.contractExecutableStellarAsset();
+      const scvInstance = xdr.ScVal.scvContractInstance(
+        new xdr.ScContractInstance({ executable: sacExecutable, storage: null })
+      );
+      const contractDataEntry = new xdr.ContractDataEntry({
+        ext: xdr.ExtensionPoint.v0(),
+        contract: new Address(CONTRACT_A).toScAddress(),
+        key: xdr.ScVal.scvLedgerKeyContractInstance(),
+        durability: xdr.ContractDataDurability.persistent,
+        val: scvInstance,
+      });
+      const sacVal = xdr.LedgerEntryData.contractData(contractDataEntry);
+
+      mockGetLedgerEntries.mockResolvedValue({
+        entries: [
+          {
+            key: xdr.LedgerKey.contractData(
+              new xdr.LedgerKeyContractData({
+                contract: new Address(CONTRACT_A).toScAddress(),
+                key: xdr.ScVal.scvLedgerKeyContractInstance(),
+                durability: xdr.ContractDataDurability.persistent,
+              })
+            ),
+            val: sacVal,
+            lastModifiedLedgerSeq: 1000,
+            liveUntilLedgerSeq: 99999,
+          },
+        ],
+        latestLedger: 1000,
+      });
+
+      await expect(
+        resolveWasmHash(CONTRACT_A, "https://rpc.testnet.stellar.org")
+      ).rejects.toThrow("Stellar Asset Contract (SAC)");
+    });
   });
 });
 

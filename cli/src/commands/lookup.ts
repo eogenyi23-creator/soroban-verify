@@ -9,6 +9,7 @@ import chalk from "chalk";
 import ora from "ora";
 import { createRegistryClient } from "@soroban-verify/sdk";
 import { getNetworkConfig } from "../lib/config.js";
+import { normalizeHash } from "../lib/hash.js";
 
 export const lookupCommand = new Command("lookup")
   .description("Look up a verification record by WASM hash")
@@ -23,13 +24,14 @@ export const lookupCommand = new Command("lookup")
     });
 
     const client = createRegistryClient(config);
-    const spinner = ora(`Looking up hash ${chalk.cyan(opts.hash.slice(0, 16))}... on ${chalk.cyan(network)}`).start();
+    const hash = normalizeHash(opts.hash);
+    const spinner = ora(`Looking up hash ${chalk.cyan(hash.slice(0, 16))}... on ${chalk.cyan(network)}`).start();
 
     try {
-      const result = await client.getVerification(opts.hash);
+      const result = await client.getVerification(hash);
 
       if (!result.verified) {
-        spinner.fail(chalk.yellow(`No verification found for hash: ${opts.hash}`));
+        spinner.fail(chalk.yellow(`No verification found for hash: ${hash}`));
         process.exit(1);
       }
 

@@ -493,3 +493,147 @@ New test file `web/src/components/VerificationBadge.test.ts` (5 tests):
 All 59 TypeScript tests pass. All prior tests continue to pass.
 
 **Branch:** fix/verify-actually-verifies → main
+
+---
+
+## Branch: fix/verify-pass-2
+
+### Item 1 — `contracts/registry/src/lib.rs`: length check before copy_into_slice
+Already correct. `wasm_hash.len() != 64` is checked first with an early
+`return Err(RegistryError::InvalidInput)`. `copy_into_slice` is only reached
+after the length check passes. No change needed.
+
+### Item 2 — Hash normalization (`cli/src/lib/hash.ts`, `cli/src/commands/lookup.ts`)
+Added `normalizeHash(hash: string): string` to `hash.ts`. It strips a
+leading `0x`/`0X` prefix and lowercases the result. Applied in `lookup.ts`
+so user-supplied `--hash` values are normalized before the registry query.
+
+Neither `sha256Hex` nor `resolveWasmHash` needed changes — both already
+produce lowercase hex with no prefix.
+
+New tests in `cli/src/lib/hash.test.ts` (5 tests in `normalizeHash` suite):
+- strips lowercase 0x prefix
+- strips uppercase 0X prefix
+- lowercases uppercase hash with no prefix
+- leaves already-normalized hash unchanged
+- lowercases and strips 0x together
+
+New tests in `cli/src/commands/__tests__/commands.test.ts` (2 tests in
+`lookup command — hash normalization` suite):
+- strips 0x prefix and lowercases before querying
+- lowercases an uppercase hash with no 0x prefix
+
+### Item 3 — SAC handling (`sdk/src/client.ts`, `cli/src/commands/__tests__/commands.test.ts`)
+`resolveWasmHash` now checks `executable.type` before accessing `wasmHash`.
+For Stellar Asset Contracts (`contractExecutableStellarAsset`) it throws:
+```
+Contract <address> is a Stellar Asset Contract (SAC) or a built-in contract.
+SACs do not have a WASM hash and cannot be registered in soroban-verify.
+```
+Previously this case caused a `TypeError: Cannot read properties of
+undefined` crash.
+
+New tests:
+- `sdk/src/__tests__/client.test.ts`: "throws a descriptive error for a
+  Stellar Asset Contract (SAC)" — constructs a real XDR SAC ledger entry
+  with `contractExecutableStellarAsset` and asserts the error message.
+- `cli/src/commands/__tests__/commands.test.ts` (check command):
+  - "exits with error when the contract address is not found on-chain"
+  - "exits with error when the contract is a Stellar Asset Contract (SAC)"
+
+### Item 4 — README doc contradictions (3 fixes)
+1. Comparison table row "Independent re-verification": removed the claim
+   that `stellar-verify check` "lets anyone rebuild and compare" — `check`
+   queries the registry, it does not rebuild. Replaced with: "the on-chain
+   record gives anyone the source repo, commit, and build args needed to
+   rebuild and compare independently."
+2. "Build Verification Is Not Yet End-to-End" section: removed "there is no
+   pinned Rust toolchain version (`rust-toolchain.toml`) in this repo yet"
+   — `rust-toolchain.toml` was added in `feat/deploy` and is present.
+3. Same section: `"✅ Verified"` → `"✅ Source Claim Recorded"` to match
+   the badge wording changed in fix/verify-actually-verifies.
+
+### Item 5 — CHANGELOG.md filename
+File is `CHANGELOG.md` (correct case, correct extension). No misspelling
+found. All prior fix branches have entries. No change needed.
+
+**Test counts after this pass:**
+
+| Package | Command | Result |
+|---|---|---|
+| `sdk` | `pnpm test` | **12 passed** (+1 SAC test) |
+| `cli` | `pnpm test` | **30 passed** (+5 normalizeHash, +2 normalization CLI, +2 SAC/not-found CLI) |
+| `web` | `pnpm test` | **27 passed** (unchanged) |
+
+All 69 TypeScript tests pass.
+
+**Branch:** fix/verify-pass-2 → main
+
+---
+
+## Branch: fix/verify-pass-2
+
+### Item 1 — `contracts/registry/src/lib.rs`: length check before copy_into_slice
+Already correct. `wasm_hash.len() != 64` is checked first with an early
+`return Err(RegistryError::InvalidInput)`. `copy_into_slice` is only reached
+after the length check passes. No change needed.
+
+### Item 2 — Hash normalization (`cli/src/lib/hash.ts`, `cli/src/commands/lookup.ts`)
+Added `normalizeHash(hash: string): string` to `hash.ts`. Strips a leading
+`0x`/`0X` prefix and lowercases the result. Applied in `lookup.ts` so
+user-supplied `--hash` values are normalized before the registry query.
+
+Neither `sha256Hex` nor `resolveWasmHash` needed changes — both already
+produce lowercase hex with no prefix.
+
+New tests in `cli/src/lib/hash.test.ts` (5 tests, `normalizeHash` suite):
+strips 0x, strips 0X, lowercases uppercase, identity on clean hash,
+lowercases+strips together.
+
+New tests in `cli/src/commands/__tests__/commands.test.ts`
+(`lookup command — hash normalization`, 2 tests):
+strips 0x+lowercases; lowercases uppercase with no prefix.
+
+### Item 3 — SAC handling (`sdk/src/client.ts`, tests)
+`resolveWasmHash` now checks `executable.type` before accessing `wasmHash`.
+For Stellar Asset Contracts (`contractExecutableStellarAsset`) it throws:
+```
+Contract <address> is a Stellar Asset Contract (SAC) or a built-in contract.
+SACs do not have a WASM hash and cannot be registered in soroban-verify.
+```
+Previously `.wasmHash.toString()` crashed with `TypeError: Cannot read
+properties of undefined`.
+
+New tests:
+- `sdk/src/__tests__/client.test.ts`: "throws a descriptive error for a
+  Stellar Asset Contract (SAC)" — real XDR SAC entry via
+  `contractExecutableStellarAsset()`.
+- `cli/src/commands/__tests__/commands.test.ts` (check command):
+  "exits with error when the contract address is not found on-chain";
+  "exits with error when the contract is a Stellar Asset Contract (SAC)".
+
+### Item 4 — README doc contradictions (3 fixes)
+1. Comparison table "Independent re-verification": removed claim that
+   `stellar-verify check` "lets anyone rebuild and compare" — `check`
+   queries the registry, it does not rebuild.
+2. "Build Verification" section: removed "there is no pinned Rust toolchain
+   (`rust-toolchain.toml`) in this repo yet" — it exists (added in
+   feat/deploy).
+3. Same section: `"✅ Verified"` → `"✅ Source Claim Recorded"` to match
+   the badge wording from fix/verify-actually-verifies.
+
+### Item 5 — CHANGELOG.md filename
+`CHANGELOG.md` — correct name, correct case. All prior branches have
+entries. No change needed.
+
+**Test counts after this pass:**
+
+| Package | Command | Result |
+|---|---|---|
+| `sdk` | `pnpm test` | **12 passed** (+1 SAC test) |
+| `cli` | `pnpm test` | **30 passed** (+9 new tests) |
+| `web` | `pnpm test` | **27 passed** (unchanged) |
+
+All 69 TypeScript tests pass.
+
+**Branch:** fix/verify-pass-2 → main

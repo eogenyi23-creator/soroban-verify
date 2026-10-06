@@ -142,7 +142,7 @@ Anyone can then look up any contract address and see:
 |---------|---------------|----------------|
 | **Verification storage** | Centralised database (off-chain) | On-chain Soroban contract — no single point of failure |
 | **Source-code linking** | Not available — shows bytecode/ABI only | Explicit: source repo URL + git commit SHA + build args |
-| **Independent re-verification** | Not supported | Built-in: `stellar-verify check` lets anyone rebuild and compare |
+| **Independent re-verification** | Not supported | Built-in: the on-chain record gives anyone the source repo, commit, and build args needed to rebuild and compare independently |
 | **Verification permanence** | Depends on Stellar Expert's service | Stored with ~1-year ledger TTL in persistent storage |
 | **Programmatic access** | Via Stellar Expert API (third-party) | Direct contract call — no intermediary |
 | **Ownership of record** | Controlled by Stellar Expert | Controlled by registry admin — admin can revoke |
@@ -211,12 +211,11 @@ existing hash from-chain) and submits it to the registry along with the
 
 This means a submitted verification is currently a **claim about how the
 WASM was built**, not a cryptographic confirmation that the claim is true.
-Additionally, there is no pinned Rust toolchain version
-(`rust-toolchain.toml`) in this repo yet, so even an independent rebuild
-attempt by a third party is not guaranteed to reproduce identical bytes,
-since Rust codegen can vary across compiler versions.
+A pinned Rust toolchain (`rust-toolchain.toml`) is present in this repo,
+which helps independent rebuilds reproduce identical bytes — but the CLI
+itself does not yet perform the rebuild.
 
-**What this means in practice:** treat "✅ Verified" as "a build recipe
+**What this means in practice:** treat "✅ Source Claim Recorded" as "a build recipe
 was recorded," not "this recipe was confirmed to produce this exact WASM."
 For anything security-critical, independently rebuild the source yourself
 using the recorded `source_commit` and `build_args`, and compare the
