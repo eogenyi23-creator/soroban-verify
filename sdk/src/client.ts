@@ -99,8 +99,17 @@ export function createRegistryClient(config: NetworkConfig) {
     }
 
     const txHash = sendResult.hash;
+    const POLL_INTERVAL_MS = 2000;
+    const POLL_TIMEOUT_MS = 60_000; // 60 s — ~30 ledgers at 2 s each
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
     while (true) {
-      await sleep(2000);
+      await sleep(POLL_INTERVAL_MS);
+      if (Date.now() > deadline) {
+        throw new Error(
+          `Transaction polling timed out after ${POLL_TIMEOUT_MS / 1000}s. ` +
+          `Check the transaction manually: ${txHash}`
+        );
+      }
       const poll = await server.getTransaction(txHash);
       if (poll.status === "SUCCESS") return { success: true, txHash, wasmHash };
       if (poll.status === "FAILED") throw new Error(`Transaction failed on-chain: ${txHash}`);

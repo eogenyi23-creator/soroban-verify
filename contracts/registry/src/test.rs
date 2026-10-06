@@ -297,3 +297,86 @@ fn test_revoke_requires_admin_auth() {
     // No mock for the admin is active here, so require_auth() panics.
     client.revoke(&wasm_hash);
 }
+
+/// wasm_hash must be exactly 64 lowercase hex characters.
+/// Strings shorter or longer than 64 chars should return InvalidInput.
+#[test]
+fn test_submit_rejects_wasm_hash_wrong_length() {
+    let (env, client) = setup_env();
+    let admin = Address::generate(&env);
+    let submitter = Address::generate(&env);
+    client.initialize(&admin);
+
+    // 63 chars — one short
+    let result = client.try_submit(
+        &submitter,
+        &s(&env, "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5"),
+        &s(&env, "https://github.com/example/repo"),
+        &s(&env, "abc123"),
+        &s(&env, "cargo build --release"),
+    );
+    assert_eq!(result, Err(Ok(RegistryError::InvalidInput)));
+
+    // 65 chars — one too many
+    let result = client.try_submit(
+        &submitter,
+        &s(&env, "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b0"),
+        &s(&env, "https://github.com/example/repo"),
+        &s(&env, "abc123"),
+        &s(&env, "cargo build --release"),
+    );
+    assert_eq!(result, Err(Ok(RegistryError::InvalidInput)));
+}
+
+/// wasm_hash containing non-hex characters (uppercase, special chars) should
+/// return InvalidInput, even if the length is exactly 64.
+#[test]
+fn test_submit_rejects_wasm_hash_non_hex_chars() {
+    let (env, client) = setup_env();
+    let admin = Address::generate(&env);
+    let submitter = Address::generate(&env);
+    client.initialize(&admin);
+
+    // uppercase hex — not lowercase, so invalid
+    let result = client.try_submit(
+        &submitter,
+        &s(&env, "6DDB28E0980F643BB97350F7E3BACB0FF1FE74D846C6D4F2C625E766210FBB5B"),
+        &s(&env, "https://github.com/example/repo"),
+        &s(&env, "abc123"),
+        &s(&env, "cargo build --release"),
+    );
+    assert_eq!(result, Err(Ok(RegistryError::InvalidInput)));
+
+    // 'g' is not a valid hex digit
+    let result = client.try_submit(
+        &submitter,
+        &s(&env, "6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbbgg"),
+        &s(&env, "https://github.com/example/repo"),
+        &s(&env, "abc123"),
+        &s(&env, "cargo build --release"),
+    );
+    assert_eq!(result, Err(Ok(RegistryError::InvalidInput)));
+}
+
+/// A valid 64-char lowercase hex hash should succeed.
+#[test]
+fn test_submit_accepts_valid_hex_hash() {
+    let (env, client) = setup_env();
+    let admin = Address::generate(&env);
+    let submitter = Address::generate(&env);
+    client.initialize(&admin);
+
+    let valid_hash = s(
+        &env,
+        "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    );
+    // Must not return an error
+    client.submit(
+        &submitter,
+        &valid_hash,
+        &s(&env, "https://github.com/example/repo"),
+        &s(&env, "abc123"),
+        &s(&env, "cargo build --release"),
+    );
+    assert!(client.is_verified(&valid_hash));
+}

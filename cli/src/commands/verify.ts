@@ -1,8 +1,15 @@
 /**
  * `stellar-verify verify`
  *
- * Builds a Soroban contract reproducibly, computes its WASM hash,
- * and submits a source-verification record to the on-chain registry.
+ * Records a source-verification claim for a Soroban contract.
+ *
+ * When --wasm is provided the CLI hashes the local file, fetches the
+ * on-chain hash for --contract, and refuses to submit if they differ.
+ * When --wasm is omitted the on-chain hash is used directly.
+ *
+ * Note: the CLI does NOT yet rebuild the contract from source itself.
+ * A submitted record is a claim about how the WASM was built, not a
+ * cryptographic confirmation. See issue #7.
  */
 
 import { Command } from "commander";
@@ -62,8 +69,23 @@ export const verifyCommand = new Command("verify")
     const spinner = ora("Resolving WASM hash...").start();
     try {
       if (opts.wasm) {
-        wasmHash = await computeLocalWasmHash(path.resolve(opts.wasm));
-        spinner.succeed(`WASM hash (local): ${chalk.green(wasmHash)}`);
+        const localHash = await computeLocalWasmHash(path.resolve(opts.wasm));
+        spinner.text = "Fetching on-chain WASM hash for comparison...";
+        const onChainHash = await resolveWasmHash(opts.contract, config.rpcUrl);
+        if (localHash !== onChainHash) {
+          spinner.fail(
+            chalk.red(
+              `WASM hash mismatch — refusing to submit.\n` +
+              `  Local  (${path.resolve(opts.wasm)}): ${localHash}\n` +
+              `  On-chain (${opts.contract}):          ${onChainHash}\n\n` +
+              `  The .wasm file you provided does not match the contract deployed at that address.\n` +
+              `  Make sure you are pointing at the correct file and contract address.`
+            )
+          );
+          process.exit(1);
+        }
+        wasmHash = localHash;
+        spinner.succeed(`WASM hash verified (local = on-chain): ${chalk.green(wasmHash)}`);
       } else {
         // resolveWasmHash accepts an rpcUrl string directly (no need to
         // construct rpc.Server here — the SDK handles it internally).

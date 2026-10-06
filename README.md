@@ -107,7 +107,7 @@ soroban-verify is a four-part system:
 | Component | Description |
 |-----------|-------------|
 | `contracts/registry` | A Soroban smart contract that stores WASM-hash → source verification records on-chain |
-| `cli/` | A TypeScript CLI (`stellar-verify`) that builds your contract reproducibly, computes its WASM hash, and submits a verification record |
+| `cli/` | A TypeScript CLI (`stellar-verify`) that hashes a WASM artifact (or fetches the hash from the network), compares it to the on-chain hash, and submits a verification record |
 | `web/` | A Next.js explorer UI — paste any contract address to see if it's source-verified, view its ABI/spec, and browse its metadata |
 | `sdk/` | Shared TypeScript types and RPC helpers used by both the CLI and web |
 
@@ -145,7 +145,7 @@ Anyone can then look up any contract address and see:
 | **Independent re-verification** | Not supported | Built-in: `stellar-verify check` lets anyone rebuild and compare |
 | **Verification permanence** | Depends on Stellar Expert's service | Stored with ~1-year ledger TTL in persistent storage |
 | **Programmatic access** | Via Stellar Expert API (third-party) | Direct contract call — no intermediary |
-| **Ownership of record** | Controlled by Stellar Expert | Controlled by registry admin + immutable once submitted |
+| **Ownership of record** | Controlled by Stellar Expert | Controlled by registry admin — admin can revoke |
 
 **The key difference:** Stellar Expert tells you what a contract does (its ABI/spec). soroban-verify tells you what source code it was built from, with an on-chain record that anyone can independently audit by rebuilding the source themselves.
 
@@ -156,8 +156,9 @@ They are complementary tools. soroban-verify's web explorer already surfaces Sor
 **soroban-verify records claims — it does not cryptographically prove ownership.**
 
 ### What the registry does guarantee
-- A verification record is an immutable, timestamped, on-chain claim: "address X
+- A verification record is a timestamped, on-chain claim: "address X
   asserts that source repo Y at commit Z, built with args W, produces WASM hash H."
+  The admin can revoke any record, so records are not immutable.
 - Anyone can independently confirm a claim by rebuilding the source themselves
   (`stellar-verify check`) and comparing the resulting hash — the registry doesn't
   ask you to trust it blindly.

@@ -15,7 +15,7 @@
  * objects.  resolveWasmHash's internal XDR-parsing logic is fully executed.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   xdr,
   Address,
@@ -106,6 +106,8 @@ const WASM_HASH_B = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef000
 
 const mockGetLedgerEntries = vi.fn();
 
+const mockAssembleTransaction = vi.hoisted(() => vi.fn());
+
 vi.mock("@stellar/stellar-sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@stellar/stellar-sdk")>();
   return {
@@ -115,6 +117,7 @@ vi.mock("@stellar/stellar-sdk", async (importOriginal) => {
       Server: vi.fn().mockImplementation(() => ({
         getLedgerEntries: mockGetLedgerEntries,
       })),
+      assembleTransaction: mockAssembleTransaction,
     },
   };
 });
@@ -225,5 +228,145 @@ describe("resolveWasmHash", () => {
 
       expect(result).toBe(WASM_HASH_A);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Polling timeout tests for submit()
+// ---------------------------------------------------------------------------
+
+import { createRegistryClient } from "../client.js";
+import type { NetworkConfig } from "../types.js";
+import { Keypair } from "@stellar/stellar-sdk";
+
+// We need a mock server whose `getTransaction` never resolves to SUCCESS
+// and whose sendTransaction returns immediately. We mock the rpc.Server
+// constructor again here — vi.mock is hoisted so we patch getTransaction
+// and the other server methods inside the test via the already-mocked constructor.
+
+const MOCK_CONFIG: NetworkConfig = {
+  network: "testnet",
+  rpcUrl: "https://rpc.testnet.stellar.org",
+  networkPassphrase: "Test SDF Network ; September 2015",
+  registryContractId: CONTRACT_A,
+};
+
+// Helper: build a minimal account mock
+function buildAccountMock() {
+  const kp = Keypair.random();
+  return {
+    id: kp.publicKey(),
+    sequence: "100",
+    incrementSequenceNumber: () => {},
+    sequenceNumber: () => "100",
+    accountId: () => kp.publicKey(),
+  };
+}
+
+describe("submit() polling timeout", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Use fake timers so we can advance time without actually waiting
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("throws a timeout error when polling does not resolve within POLL_TIMEOUT_MS", async () => {
+    // Each getTransaction call returns NOT_FOUND so the loop keeps running
+    const mockGetTransaction = vi.fn().mockResolvedValue({ status: "NOT_FOUND" });
+    const mockSendTransaction = vi.fn().mockResolvedValue({
+      status: "PENDING",
+      hash: "testhash1234567890",
+    });
+    // isSimulationError checks `"error" in sim` — must NOT have an error key.
+    // isSimulationSuccess checks `"transactionData" in sim`.
+    const mockSimulate = vi.fn().mockResolvedValue({
+      result: { retval: null },
+      transactionData: "",
+      minResourceFee: "0",
+    });
+    const mockGetAccount = vi.fn().mockResolvedValue(buildAccountMock());
+    // assembleTransaction returns a builder object; we only need .build() to return
+    // something that has a .sign() method.
+    const mockPreparedTx = { sign: vi.fn() };
+    mockAssembleTransaction.mockReturnValue({ build: () => mockPreparedTx });
+
+    // rpc.Server is already a vi.fn() from the top-level vi.mock — just
+    // reconfigure its return value for this test.
+    (rpc.Server as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      getLedgerEntries: mockGetLedgerEntries,
+      getAccount: mockGetAccount,
+      simulateTransaction: mockSimulate,
+      sendTransaction: mockSendTransaction,
+      getTransaction: mockGetTransaction,
+    }));
+
+    const client = createRegistryClient(MOCK_CONFIG);
+
+    // Attach a no-op catch immediately to prevent "unhandled rejection" warnings
+    // that can occur when fake timers fire the rejection asynchronously.
+    const submitPromise = client.submit({
+      contractAddress: CONTRACT_A,
+      wasmHash: WASM_HASH_A,
+      sourceRepo: "https://github.com/example/repo",
+      sourceCommit: "abc123",
+      buildArgs: "cargo build --release",
+      signerSecretKey: Keypair.random().secret(),
+    });
+    // Suppress the unhandled rejection warning — we assert on it below.
+    submitPromise.catch(() => {});
+
+    // Advance time past the 60-second timeout
+    await vi.advanceTimersByTimeAsync(65_000);
+
+    await expect(submitPromise).rejects.toThrow(
+      "Transaction polling timed out after 60s"
+    );
+  });
+
+  it("resolves successfully when getTransaction returns SUCCESS before timeout", async () => {
+    const txHash = "successhash0000000000000000000000000000000000000000000000000";
+    const mockGetTransaction = vi.fn().mockResolvedValue({ status: "SUCCESS" });
+    const mockSendTransaction = vi.fn().mockResolvedValue({
+      status: "PENDING",
+      hash: txHash,
+    });
+    const mockSimulate = vi.fn().mockResolvedValue({
+      result: { retval: null },
+      transactionData: "",
+      minResourceFee: "0",
+    });
+    const mockGetAccount = vi.fn().mockResolvedValue(buildAccountMock());
+    const mockPreparedTx = { sign: vi.fn() };
+    mockAssembleTransaction.mockReturnValue({ build: () => mockPreparedTx });
+
+    (rpc.Server as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      getLedgerEntries: mockGetLedgerEntries,
+      getAccount: mockGetAccount,
+      simulateTransaction: mockSimulate,
+      sendTransaction: mockSendTransaction,
+      getTransaction: mockGetTransaction,
+    }));
+
+    const client = createRegistryClient(MOCK_CONFIG);
+
+    const submitPromise = client.submit({
+      contractAddress: CONTRACT_A,
+      wasmHash: WASM_HASH_A,
+      sourceRepo: "https://github.com/example/repo",
+      sourceCommit: "abc123",
+      buildArgs: "cargo build --release",
+      signerSecretKey: Keypair.random().secret(),
+    });
+
+    // Advance past the 2-second poll interval
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    const result = await submitPromise;
+    expect(result.success).toBe(true);
+    expect(result.txHash).toBe(txHash);
   });
 });

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   isVerified: vi.fn(),
   resolveWasmHash: vi.fn(),
   submit: vi.fn(),
+  computeLocalWasmHash: vi.fn(),
 }));
 
 vi.mock("@soroban-verify/sdk", () => ({
@@ -29,6 +30,10 @@ vi.mock("@soroban-verify/sdk", () => ({
     testnet: { rpcUrl: "https://testnet.example.com", networkPassphrase: "Test SDF Network ; September 2015" },
     mainnet: { rpcUrl: "https://mainnet.example.com", networkPassphrase: "Public Global Stellar Network ; September 2015" },
   },
+}));
+
+vi.mock("../../lib/hash.js", () => ({
+  computeLocalWasmHash: mocks.computeLocalWasmHash,
 }));
 
 describe("stellar-verify CLI commands", () => {
@@ -187,6 +192,67 @@ describe("stellar-verify CLI commands", () => {
       ).rejects.toThrow("process.exit(1)");
 
       expect(mocks.resolveWasmHash).not.toHaveBeenCalled();
+    });
+
+    it("exits with error when local --wasm hash does not match on-chain hash", async () => {
+      process.env.STELLAR_SECRET_KEY = "STEST_SECRET_KEY_FOR_UNIT_TEST_ONLY";
+      // local file hashes to "aaaa..." but on-chain is "bbbb..."
+      mocks.computeLocalWasmHash.mockResolvedValue(
+        "aaaa000000000000000000000000000000000000000000000000000000000000"
+      );
+      mocks.resolveWasmHash.mockResolvedValue(
+        "bbbb000000000000000000000000000000000000000000000000000000000001"
+      );
+
+      await expect(
+        verifyCommand.parseAsync([
+          "node",
+          "stellar-verify",
+          "verify",
+          "--contract",
+          "CACVFG6MBJ9SPQ6C7NU...",
+          "--wasm",
+          "/tmp/test.wasm",
+          "--source",
+          "https://github.com/org/repo",
+          "--commit",
+          "deadbeef",
+        ])
+      ).rejects.toThrow("process.exit(1)");
+
+      expect(mocks.computeLocalWasmHash).toHaveBeenCalled();
+      expect(mocks.resolveWasmHash).toHaveBeenCalledWith("CACVFG6MBJ9SPQ6C7NU...", expect.anything());
+      // Must not proceed to submit
+      expect(mocks.isVerified).not.toHaveBeenCalled();
+      expect(mocks.submit).not.toHaveBeenCalled();
+    });
+
+    it("proceeds to submit when local --wasm hash matches on-chain hash", async () => {
+      process.env.STELLAR_SECRET_KEY = "STEST_SECRET_KEY_FOR_UNIT_TEST_ONLY";
+      const matchingHash = "cccc000000000000000000000000000000000000000000000000000000000002";
+      mocks.computeLocalWasmHash.mockResolvedValue(matchingHash);
+      mocks.resolveWasmHash.mockResolvedValue(matchingHash);
+      mocks.isVerified.mockResolvedValue(false);
+      mocks.submit.mockResolvedValue({ success: true, txHash: "txabc123", wasmHash: matchingHash });
+
+      await verifyCommand.parseAsync([
+        "node",
+        "stellar-verify",
+        "verify",
+        "--contract",
+        "CACVFG6MBJ9SPQ6C7NU...",
+        "--wasm",
+        "/tmp/test.wasm",
+        "--source",
+        "https://github.com/org/repo",
+        "--commit",
+        "deadbeef",
+      ]);
+
+      expect(mocks.computeLocalWasmHash).toHaveBeenCalled();
+      expect(mocks.resolveWasmHash).toHaveBeenCalledWith("CACVFG6MBJ9SPQ6C7NU...", expect.anything());
+      expect(mocks.isVerified).toHaveBeenCalledWith(matchingHash);
+      expect(mocks.submit).toHaveBeenCalled();
     });
   });
 });

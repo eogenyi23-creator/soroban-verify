@@ -99,6 +99,19 @@ impl RegistryContract {
             return Err(RegistryError::InvalidInput);
         }
 
+        // Validate wasm_hash is exactly 64 lowercase hex characters.
+        // SHA-256 produces 32 bytes → 64 hex characters.
+        if wasm_hash.len() != 64 {
+            return Err(RegistryError::InvalidInput);
+        }
+        let mut hash_bytes = [0u8; 64];
+        wasm_hash.copy_into_slice(&mut hash_bytes);
+        for &b in hash_bytes.iter() {
+            if !matches!(b, b'0'..=b'9' | b'a'..=b'f') {
+                return Err(RegistryError::InvalidInput);
+            }
+        }
+
         // Reject duplicate verifications.
         let key = DataKey::Verification(wasm_hash.clone());
         if env.storage().persistent().has(&key) {

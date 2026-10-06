@@ -399,3 +399,97 @@ All verification commands exited clean:
 - `grep -rn "Node.js 20|node 20|v20|pnpm 8" --include=*.md . --exclude-dir=node_modules` — exit 1 (no matches)
 
 **Branch:** fix/docs-node-version
+
+---
+
+## Branch: fix/verify-actually-verifies
+
+**What changed:**
+
+### Issue 1 — `cli/src/commands/verify.ts`: compare local hash to on-chain hash
+When `--wasm` is provided the CLI now fetches the on-chain WASM hash for
+`--contract` via `resolveWasmHash` and compares it to the locally-computed
+hash. If they differ the command prints a clear mismatch message and exits 1
+without submitting. Only when both hashes are identical does it proceed.
+
+Previously the CLI used the local hash OR the on-chain hash but never
+compared them, making it trivially easy to submit a false source claim for
+any deployed contract.
+
+New tests in `cli/src/commands/__tests__/commands.test.ts`:
+- `exits with error when local --wasm hash does not match on-chain hash`
+- `proceeds to submit when local --wasm hash matches on-chain hash`
+
+### Issue 2 — `contracts/registry/src/lib.rs`: reject non-64-hex wasm_hash
+`submit()` now validates that `wasm_hash` is exactly 64 lowercase hex
+characters (the canonical form of a SHA-256 digest) before accepting the
+record. Previously only an empty-string check was performed, so arbitrary
+strings could be submitted as wasm_hash values.
+
+Validation uses `wasm_hash.len() != 64` (early exit) then
+`copy_into_slice` + a byte-level `matches!(b, b'0'..=b'9' | b'a'..=b'f')`
+check — no `std` dependency.
+
+New tests in `contracts/registry/src/test.rs`:
+- `test_submit_rejects_wasm_hash_wrong_length` (63-char and 65-char inputs)
+- `test_submit_rejects_wasm_hash_non_hex_chars` (uppercase hex, `g` digit)
+- `test_submit_accepts_valid_hex_hash` (64-char all-lowercase hex passes)
+
+Note: `cargo` is not available in this environment; Rust tests are added and
+reviewed as correct but cannot be executed here.
+
+### Issue 3 — `sdk/src/client.ts`: add timeout to polling loop
+The `while (true)` polling loop in `submit()` now times out after 60 seconds
+(~30 ledgers at 2 s/ledger). On timeout it throws:
+```
+Transaction polling timed out after 60s. Check the transaction manually: <txHash>
+```
+Previously the loop could hang indefinitely if `getTransaction` always
+returned `NOT_FOUND`.
+
+New tests in `sdk/src/__tests__/client.test.ts`:
+- `throws a timeout error when polling does not resolve within POLL_TIMEOUT_MS`
+- `resolves successfully when getTransaction returns SUCCESS before timeout`
+
+### Issue 4 — `README.md` + `cli/src/commands/verify.ts` docstring: remove contradictions
+Three doc fixes:
+1. `verify.ts` docstring: replaced "Builds a Soroban contract reproducibly"
+   with a note that the CLI records a claim and does not yet rebuild from source.
+2. `README.md` comparison table: "immutable once submitted" → "admin can revoke"
+   (the admin has always been able to revoke via `RegistryContract::revoke`).
+3. `README.md` Trust Model section: "immutable, timestamped, on-chain claim"
+   → "timestamped, on-chain claim … admin can revoke any record, so records
+   are not immutable."
+4. `README.md` component table: `cli/` description updated to accurately say
+   "hashes a WASM artifact (or fetches the hash from the network), compares it
+   to the on-chain hash, and submits a verification record."
+
+### Issue 5 — `web/src/components/VerificationBadge.tsx`: badge wording
+Changed the verified badge text from `"Source Verified"` to
+`"Source Claim Recorded"` and updated both `aria-label` attributes to:
+- verified: `"Contract has a source claim recorded on-chain"`
+- unverified: `"Contract has no source claim on-chain"`
+
+"Source Verified" implied a cryptographic rebuild confirmation that the
+registry does not (yet) perform. The new wording matches what is actually
+stored: a submitter's claim that a given source produces the WASM hash.
+
+New test file `web/src/components/VerificationBadge.test.ts` (5 tests):
+- Does not contain "Source Verified"
+- Contains "Source Claim Recorded"
+- No aria-label says "source verified"
+- Verified aria-label references "source claim recorded on-chain"
+- Unverified aria-label references "no source claim on-chain"
+
+**Test counts after this pass:**
+
+| Package | Command | Result |
+|---|---|---|
+| `sdk` | `pnpm test` | **11 passed** (+2 polling timeout tests) |
+| `cli` | `pnpm test` | **21 passed** (+2 hash-comparison tests) |
+| `web` | `pnpm test` | **27 passed** (+5 badge-wording tests) |
+| `contracts/registry` | `cargo test` | not runnable (no cargo in env); 3 new tests added and reviewed as correct |
+
+All 59 TypeScript tests pass. All prior tests continue to pass.
+
+**Branch:** fix/verify-actually-verifies → main

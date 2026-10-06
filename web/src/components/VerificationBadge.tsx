@@ -41,9 +41,9 @@ export function VerificationBadge({ result }: Props) {
           fontWeight: 600,
         }}
         role="status"
-        aria-label="Contract is source verified"
+        aria-label="Contract has a source claim recorded on-chain"
       >
-        ✅ Source Verified
+        ✅ Source Claim Recorded
       </div>
     );
   }
@@ -63,7 +63,7 @@ export function VerificationBadge({ result }: Props) {
         fontWeight: 600,
       }}
       role="status"
-      aria-label="Contract is not source verified"
+      aria-label="Contract has no source claim on-chain"
     >
       ⚠️ Not Verified
       <span style={{ fontWeight: 400, color: "#888", fontSize: 13 }}>
