@@ -1,100 +1,245 @@
 # soroban-verify
 
-> On-chain source verification registry for Soroban smart contracts on Stellar — Etherscan-style verified contracts, native to Stellar.
+> On-chain source verification registry for Soroban smart contracts on Stellar. Etherscan-style "verified source" records, stored in a Soroban contract.
 
 [![CI](https://github.com/eogenyi23-creator/soroban-verify/actions/workflows/ci.yml/badge.svg)](https://github.com/eogenyi23-creator/soroban-verify/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## End-to-End Example
+When you deploy a Soroban contract, anyone can see its WASM bytecode, but not **which source code produced it**. soroban-verify stores a record on-chain that links a WASM hash to a source repository, a git commit, and the build command. Anyone can then rebuild that commit and compare hashes.
 
-Here is a real verification walkthrough. This is what soroban-verify is for.
+This README is a step-by-step guide. Follow Parts A to E in order and you will install the project, test it, deploy your own registry to Stellar **testnet**, submit and read back a verification record, browse it in the web explorer, and independently check it. Everything uses testnet and throwaway keys. No real funds are involved.
 
-### Step 1 — Build the contract locally
+**Contents:** [Part A](#part-a-install-build-and-test) · [Part B](#part-b-deploy-your-own-registry-to-testnet) · [Part C](#part-c-submit-and-check-a-verification) · [Part D](#part-d-browse-it-in-the-web-explorer) · [Part E](#part-e-verify-a-record-independently) · [Troubleshooting](#troubleshooting) · [Current deployment](#current-testnet-deployment) · [How it works and limits](#what-is-soroban-verify) · [CLI reference](#cli-reference)
 
-```bash
-git clone https://github.com/stellar/soroban-examples
-cd soroban-examples/hello_world
-cargo build --target wasm32v1-none --release
-```
+> **Important:** a record is a *claim*, not a proof. The CLI does not rebuild the source for you. See [Trust Model & Limitations](#trust-model--limitations).
 
-This produces `target/wasm32v1-none/release/soroban_hello_world_contract.wasm`.
+---
 
-### Step 2 — Compute the WASM hash
+## Part A: Install, build and test
 
-```bash
-sha256sum target/wasm32v1-none/release/soroban_hello_world_contract.wasm
-# 6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b
-```
+This part needs no network access and no keys. It confirms the code works on your machine.
 
-This is the hash Stellar stores on-chain when you run `stellar contract upload`.
-The registry contract maps exactly this hash to your source code.
+### A1. Prerequisites
 
-### Step 3 — Check if the contract is already verified
+| Tool | Version | Check with |
+|---|---|---|
+| Rust | 1.91.0 (pinned by `rust-toolchain.toml`; rustup installs it automatically) | `rustc --version` |
+| Node.js | 22.12 or newer | `node --version` |
+| pnpm | 9 or newer | `pnpm --version` |
+| Stellar CLI | 28.x (tested with 28.1.0) | `stellar --version` |
 
-```bash
-stellar-verify check \
-  --contract CAAAAA...YOUR_CONTRACT_ADDRESS \
-  --network testnet
-
-# Output:
-# ✗ Contract CAAAAA... is NOT source-verified.
-#   WASM hash: 6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b
-```
-
-### Step 4 — Submit a verification record
+Install what is missing:
 
 ```bash
-export STELLAR_SECRET_KEY="S...your-secret-key"
+# Rust (then load it into the current shell)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
 
-stellar-verify verify \
-  --contract CAAAAA...YOUR_CONTRACT_ADDRESS \
-  --source https://github.com/stellar/soroban-examples \
-  --commit 3a7f2d1c9b4e5f8a0d6c2e1b9f4a7d3c8e5b2f1a \
-  --build-args "cargo build --release --target wasm32v1-none" \
-  --network testnet
-
-# Output:
-# ✓ Verification submitted!
-# Transaction: a8f3c2e1b9d4f7a2c5e8b3d6f1a4c7e2b5d8f3a6
-# WASM hash:   6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b
-# Source:      https://github.com/stellar/soroban-examples
-# Commit:      3a7f2d1c9b4e5f8a0d6c2e1b9f4a7d3c8e5b2f1a
+# Stellar CLI: use the prebuilt installer
+curl -fsSL https://github.com/stellar/stellar-cli/raw/main/install.sh | sh
 ```
 
-### Step 5 — Verify the record is on-chain
+Do **not** use `cargo install stellar-cli`. Current releases need a newer Rust than the pinned 1.91.0, and changing the toolchain changes the WASM hash. The installer may warn that the `wasm32v1-none` target is missing; ignore it, because the repo's toolchain file installs it on the first build.
+
+In a fresh GitHub Codespace, Node and pnpm were already present; Rust and the Stellar CLI were not.
+
+### A2. Get the code and build the JavaScript packages
 
 ```bash
-stellar-verify lookup \
-  --hash 6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b \
-  --network testnet
+git clone https://github.com/eogenyi23-creator/soroban-verify
+cd soroban-verify
 
-# Output:
-# ✓ Verification record found!
-# WASM hash:     6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b
-# Source repo:   https://github.com/stellar/soroban-examples
-# Commit:        3a7f2d1c9b4e5f8a0d6c2e1b9f4a7d3c8e5b2f1a
-# Build args:    cargo build --release --target wasm32v1-none
-# Submitted by:  GCXXX...your-address
-# Ledger:        54321
+pnpm install
+pnpm build
 ```
 
-### Step 6 — Anyone can independently verify
+`pnpm build` builds the SDK, CLI and web app in order. The SDK must be built before the CLI or web tests can run, because they import `sdk/dist`.
+
+### A3. Run the tests
 
 ```bash
-# Check out the same commit
-git clone https://github.com/stellar/soroban-examples
-cd soroban-examples
-git checkout 3a7f2d1c9b4e5f8a0d6c2e1b9f4a7d3c8e5b2f1a
-
-# Build with the same args
-cargo build --target wasm32v1-none --release
-
-# Compare the hash
-sha256sum target/wasm32v1-none/release/soroban_hello_world_contract.wasm
-# → must match 6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b
+pnpm test:ts     # TypeScript: sdk, cli, web
+cargo test       # Rust: the registry contract
 ```
 
-If the hashes match, you have independently confirmed that the source code at that commit produces exactly the WASM deployed on-chain.
+Expected results: SDK **12** passed, CLI **30** passed, web **27** passed, contract **14** passed. The first `cargo test` downloads the pinned toolchain and compiles dependencies, which takes a few minutes. The CLI tests use mocks and never touch a network.
+
+### A4. Build the contract WASM and hash it
+
+```bash
+cargo build --manifest-path contracts/registry/Cargo.toml \
+  --target wasm32v1-none --release
+
+ls -lh target/wasm32v1-none/release/soroban_verify_registry.wasm
+sha256sum target/wasm32v1-none/release/soroban_verify_registry.wasm
+```
+
+The file should be about 16 KB. The SHA-256 is the identifier the registry stores records under. Note that Cargo only honors release profiles in the **workspace root** `Cargo.toml`; do not move them into `contracts/registry/Cargo.toml`.
+
+---
+
+## Part B: Deploy your own registry to testnet
+
+### B1. Create and fund a throwaway testnet identity
+
+```bash
+stellar keys generate deployer --network testnet
+stellar keys fund deployer --network testnet
+stellar keys address deployer      # prints a G... address
+```
+
+(Stellar CLI 28 has no `--global` flag; keys are stored in your home directory by default.)
+
+### B2. Deploy the contract
+
+```bash
+REGISTRY_ID=$(stellar contract deploy \
+  --wasm target/wasm32v1-none/release/soroban_verify_registry.wasm \
+  --source deployer --network testnet)
+echo "Registry: $REGISTRY_ID"
+```
+
+`Registry:` must print an ID starting with `C`. If it prints nothing, stop and check [Troubleshooting](#troubleshooting). Every later command depends on this ID.
+
+### B3. Initialize it
+
+The account you pass becomes the registry admin, who can revoke records.
+
+```bash
+stellar contract invoke --id "$REGISTRY_ID" --source deployer --network testnet \
+  -- initialize --admin "$(stellar keys address deployer)"
+```
+
+Calling `initialize` a second time fails by design.
+
+---
+
+## Part C: Submit and check a verification
+
+### C1. Set the environment variables
+
+```bash
+export REGISTRY_TESTNET_ID="$REGISTRY_ID"
+export REGISTRY_MAINNET_ID="$REGISTRY_ID"    # placeholder; only the web app needs it set
+export STELLAR_SECRET_KEY="$(stellar keys secret deployer)"
+```
+
+The secret key is only accepted through this environment variable, never as a flag, so it stays out of shell history and process listings. Use throwaway testnet keys only. These variables disappear when the terminal or Codespace restarts; the deployed contract and its records do not. After a restart, set `REGISTRY_ID` again to your contract ID and re-run the exports.
+
+### C2. Run the CLI
+
+The CLI has no `pnpm start` script. Run the built file directly from the `cli/` folder:
+
+```bash
+cd cli
+
+# 1. Before: should report NOT source-verified and print the WASM hash
+node dist/index.js --network testnet check --contract "$REGISTRY_ID"
+
+# 2. Submit a record. --wasm makes the CLI compare your local hash with the on-chain hash first
+node dist/index.js --network testnet verify \
+  --contract "$REGISTRY_ID" \
+  --source https://github.com/eogenyi23-creator/soroban-verify \
+  --commit "$(git rev-parse HEAD)" \
+  --wasm ../target/wasm32v1-none/release/soroban_verify_registry.wasm
+
+# 3. After: should report source-verified, with the record's details
+node dist/index.js --network testnet check --contract "$REGISTRY_ID"
+
+# 4. Look the same record up by hash
+WASM_HASH=$(sha256sum ../target/wasm32v1-none/release/soroban_verify_registry.wasm | cut -d' ' -f1)
+node dist/index.js --network testnet lookup --hash "$WASM_HASH"
+```
+
+Output from a real run (2026-10-07), trimmed:
+
+```
+✔ WASM hash verified (local = on-chain): 5a051bb9fe3f7deef77f6548e1fea945782d4b4ca84cb3657d51c623662da086
+✔ No existing record found — proceeding.
+✔ Verification submitted!
+
+✔ ✓ Contract CDXYHMEZ...LYMOHS is source-verified!
+WASM hash:     5a051bb9fe3f7deef77f6548e1fea945782d4b4ca84cb3657d51c623662da086
+Source repo:   https://github.com/eogenyi23-creator/soroban-verify
+Commit:        c6a4f98d965e73f3a4e1e06a0ea5094b06ac003d
+Submitted by:  GDTZ66MB...JWS7ZMN5
+Ledger:        5074434
+```
+
+What to expect from the safety checks:
+
+- Run step 2 again: the CLI finds the existing record and stops without submitting.
+- Pass a `--wasm` file that does not match the contract on-chain: the CLI refuses to submit and exits with an error.
+- Contracts that are Stellar Asset Contracts (tokens created natively) have no WASM hash and cannot be registered.
+
+This guide registers the registry contract itself, because it is the one contract you just deployed. To verify a different contract, use its address for `--contract` and the `.wasm` it was built from for `--wasm`.
+
+---
+
+## Part D: Browse it in the web explorer
+
+```bash
+# still in the same terminal, so the environment variables are set
+cd ../web
+pnpm dev
+```
+
+Open http://localhost:3000. In a Codespace, open the **Ports** tab and click the forwarded port 3000. Paste the contract address into the search bar. A recorded contract shows a "Source Claim Recorded" badge with the repo, commit and submitter; a contract with no record shows that no source claim exists. Press Ctrl+C to stop the server.
+
+---
+
+## Part E: Verify a record independently
+
+This is the point of the project: you do not have to trust the registry or the submitter. Rebuild the recorded commit on a clean checkout and compare hashes. The commit must be pushed to the public repository for this to work.
+
+```bash
+cd /tmp
+git clone https://github.com/eogenyi23-creator/soroban-verify
+cd soroban-verify
+git checkout c6a4f98d965e73f3a4e1e06a0ea5094b06ac003d    # the commit from the record
+
+cargo build --manifest-path contracts/registry/Cargo.toml \
+  --target wasm32v1-none --release
+sha256sum target/wasm32v1-none/release/soroban_verify_registry.wasm
+```
+
+If the hash equals the one on-chain, the source at that commit produces exactly the deployed code. If it differs, the claim is wrong or the build environment differs; check that you are on the pinned Rust version and the recorded build arguments. Reproducing hash `5a051bb9...` from a clean clone has not yet been confirmed (see CHANGELOG, "Not yet verified").
+
+---
+
+## Troubleshooting
+
+These are real errors hit while writing this guide.
+
+| Symptom | Cause and fix |
+|---|---|
+| `cargo: command not found` | Rust is not installed or not loaded. Install with rustup, then `source "$HOME/.cargo/env"`. |
+| `stellar: command not found` | Run the Stellar CLI installer from A1. |
+| `cargo install stellar-cli` fails: requires rustc 1.93.0 or newer | Expected on the pinned 1.91.0. Use the prebuilt installer instead. |
+| `error: unexpected argument '--global'` | Stellar CLI 28 removed it. Use `stellar keys generate deployer --network testnet`. |
+| `Failed to find config identity for deployer` | The key was never created. Run B1, then redo the failed step. |
+| `Invalid name: names cannot exceed 250 characters or be empty` | `$REGISTRY_ID` is empty because the deploy did not run or failed. Redo B2 and check the printed ID. |
+| `bash: syntax error near unexpected token 'newline'` | You pasted a placeholder such as `<REGISTRY_ID>`. Angle brackets are shell syntax; replace the whole placeholder with the real value, without brackets. |
+| `Failed to resolve entry for package "@soroban-verify/sdk"` | The SDK is not built. Run `pnpm build` from the repo root, then retry. |
+| `ERR_PNPM_NO_SCRIPT_OR_SERVER ... Missing script start` | The CLI has no `start` script. Use `node dist/index.js ...` from `cli/`. |
+| `No registry contract ID configured for testnet` | `REGISTRY_TESTNET_ID` is not set, or pass `--registry-id <C...>`. |
+| `secret key required` | `STELLAR_SECRET_KEY` is not set. See C1. |
+| `warning: profiles for the non root package will be ignored` | An older checkout. The release profile now lives in the workspace root `Cargo.toml`. |
+| Variables gone after a restart | Normal. Re-export them. The contract and records persist on testnet. |
+| `stellar keys secret` not found | Try `stellar keys show deployer` on other CLI versions. |
+
+---
+
+## Current Testnet Deployment
+
+| | |
+|---|---|
+| Registry contract | `CDXYHMEZU2WTDW53MXTWO6IHVDHXTOLHHBCF4LHC43RZ24QE52LYMOHS` |
+| WASM hash | `5a051bb9fe3f7deef77f6548e1fea945782d4b4ca84cb3657d51c623662da086` |
+| Self-verification ledger | 5074434 |
+| Source commit recorded | `c6a4f98d965e73f3a4e1e06a0ea5094b06ac003d` |
+
+The record was submitted by the registry's own admin account as a demonstration, so it is a claim like any other. Earlier testnet deployments (`CBMQVH7M...`, `CCWVSYES...`) are superseded. There is no mainnet deployment. Testnet can be reset by the network operators, in which case redeploy using Part B. See [CHANGELOG.md](CHANGELOG.md) for history.
 
 ---
 
@@ -160,8 +305,8 @@ They are complementary tools. soroban-verify's web explorer already surfaces Sor
   asserts that source repo Y at commit Z, built with args W, produces WASM hash H."
   The admin can revoke any record, so records are not immutable.
 - Anyone can independently confirm a claim by rebuilding the source themselves
-  (`stellar-verify check`) and comparing the resulting hash — the registry doesn't
-  ask you to trust it blindly.
+  at the recorded commit and comparing the resulting hash with the one
+  `stellar-verify check` reports — the registry doesn't ask you to trust it blindly.
 
 ### What it does *not* guarantee
 Soroban's execution environment does not expose who deployed a given WASM hash —
@@ -242,7 +387,7 @@ soroban-verify/
 │   └── src/
 │       ├── index.ts         # CLI entrypoint (commander)
 │       ├── commands/
-│       │   ├── verify.ts    # `stellar-verify submit` command
+│       │   ├── verify.ts    # `stellar-verify verify` command
 │       │   ├── check.ts     # `stellar-verify check` command
 │       │   └── lookup.ts    # `stellar-verify lookup` command
 │       └── lib/
@@ -283,78 +428,51 @@ soroban-verify/
 │   └── ISSUE_TEMPLATE/
 │       ├── bug_report.md
 │       └── feature_request.md
-├── Cargo.toml               # Rust workspace
+├── Cargo.toml               # Rust workspace + release profiles
 ├── CHANGELOG.md        # Append-only change log
 └── README.md
 ```
 
-## Getting Started
+## CLI Reference
 
-### Prerequisites
-
-- [Rust](https://rustup.rs/) + `wasm32v1-none` target
-- [Stellar CLI](https://developers.stellar.org/docs/tools/cli) (`stellar`)
-- [Node.js](https://nodejs.org/) 22.12+
-- [pnpm](https://pnpm.io/) 9+
-
-### Build the registry contract
+The binary is `stellar-verify` (`cli/dist/index.js`). Run it with `node dist/index.js` from `cli/`, or define a shortcut once per shell:
 
 ```bash
-cd contracts/registry
-cargo build --target wasm32v1-none --release
+alias stellar-verify="node $(pwd)/dist/index.js"     # run inside cli/
 ```
 
-### Run the CLI
-
-```bash
-cd cli
-pnpm install
-pnpm build
-# Submit a verification
-pnpm start verify --contract <CONTRACT_ADDRESS> --source https://github.com/you/your-contract --commit <GIT_SHA>
 ```
+stellar-verify [global options] <command> [options]
 
-### Run the web explorer
-
-```bash
-cd web
-pnpm install
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-## CLI Usage
-
-```
-stellar-verify <command> [options]
+Global options:
+  -n, --network <network>   testnet | mainnet            [default: testnet]
+      --rpc-url <url>       Override the Stellar RPC URL
+      --registry-id <id>    Override the registry contract address
+  -V, --version / -h, --help
 
 Commands:
-  verify    Build a contract and submit a source verification to the registry
-  check     Check if a contract address is source-verified
-  lookup    Lookup all verifications for a given WASM hash
-
-Options:
-  --network   Stellar network (testnet | mainnet)  [default: testnet]
-  --help      Show help
+  verify    Submit a source-verification record
+              -c, --contract <address>   contract to register (required)
+              -s, --source <url>         public source repo URL (required)
+                  --commit <sha>         commit that produced the WASM (required)
+              -b, --build-args <args>    build command  [default: cargo build --release --target wasm32v1-none]
+                  --wasm <path>          local .wasm; its hash must equal the on-chain hash
+  check     Check whether a contract has a record
+              -c, --contract <address>   (required)
+  lookup    Look up a record by WASM hash
+                  --hash <wasm-hash>     64-char hex; a 0x prefix and uppercase are accepted
+                  --json                 print raw JSON
 ```
 
-### Examples
+Environment variables:
 
-```bash
-# Check if a contract is verified
-stellar-verify check --contract CAAAAA...
+| Variable | Purpose |
+|---|---|
+| `REGISTRY_TESTNET_ID` | Registry contract address on testnet (or use `--registry-id`) |
+| `REGISTRY_MAINNET_ID` | Registry contract address on mainnet |
+| `STELLAR_SECRET_KEY` | Signing key for `verify`. Environment only; there is no flag for it |
 
-# Submit a new verification
-stellar-verify verify \
-  --contract CAAAAA... \
-  --source https://github.com/you/contract \
-  --commit abc123 \
-  --network testnet
-
-# Lookup by WASM hash
-stellar-verify lookup --hash 6ddb28e0980f643bb97350f7e3bacb0ff1fe74d846c6d4f2c625e766210fbb5b
-```
+The CLI loads a `.env` file from the directory you run it in (`.env` is git-ignored). Keep real keys out of it.
 
 ## Contributing 
 
