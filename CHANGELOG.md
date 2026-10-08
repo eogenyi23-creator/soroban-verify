@@ -637,3 +637,104 @@ entries. No change needed.
 All 69 TypeScript tests pass.
 
 **Branch:** fix/verify-pass-2 → main
+
+
+---
+
+## Branch: fix/cargo-profile-root
+
+**What changed:**
+- Moved `[profile.release]` and `[profile.release-with-logs]` from `contracts/registry/Cargo.toml` into the workspace root `Cargo.toml`
+- Removed the same two blocks from `contracts/registry/Cargo.toml`
+- Rebuilt the registry WASM: **16 KB**, SHA-256 `5a051bb9fe3f7deef77f6548e1fea945782d4b4ca84cb3657d51c623662da086` (previous build: `34626f2394760eae0e1cfee08c334137fb59a424a689fb9fad2443e329ef1992`)
+
+**Why:**
+`cargo test` printed `warning: profiles for the non root package will be ignored`.
+Cargo only reads profiles from the workspace root, so the `opt-level = "z"`,
+`overflow-checks = true`, `lto = true`, `panic = "abort"` and `strip = "symbols"`
+settings in the member crate were never applied. The earlier testnet builds used
+Cargo's default release profile instead of the documented one. The WASM hash changed
+because the build configuration changed; no contract source was modified.
+
+**Branch:** fix/cargo-profile-root → main
+
+---
+
+## Branch: testnet-redeploy-2026-10-07
+
+**What changed:**
+- Deployed the corrected build to Stellar testnet and initialized it with the deployer as admin
+- **Current registry contract ID:** `CDXYHMEZU2WTDW53MXTWO6IHVDHXTOLHHBCF4LHC43RZ24QE52LYMOHS`
+- WASM hash: `5a051bb9fe3f7deef77f6548e1fea945782d4b4ca84cb3657d51c623662da086`
+- Ran `stellar-verify verify --wasm` against it (the registry verifying itself): local hash equal to on-chain hash, record submitted at ledger **5074434**, source commit `c6a4f98d965e73f3a4e1e06a0ea5094b06ac003d`, then `stellar-verify check` returned the record
+- Superseded earlier deployment from the same session: `CBMQVH7MEW6AZISSORUQQA22XAIE5Z44PCIZXLTDYIGO2BOOKMM7L3LA` (hash `34626f23...`, ledger 5074154, commit `30b2e21...`, built without the release profile). Still on-chain but no longer the current registry
+- The `CCWVSYESKQVEHFZ24HQ6D5UQPRMSFD3PYFF4AEJ7SSJNYOKDVJTVARRO` deployment recorded in `testnet-deployment` is also superseded
+
+**Why:**
+The profile fix above changes the WASM hash, so the registry had to be redeployed for
+the on-chain code to match what this repository builds. The `--wasm` flag was used so the
+CLI's local-versus-on-chain hash comparison (added in `fix/verify-actually-verifies`)
+was exercised against a real network, not only against mocks.
+
+**Real test counts (run 2026-10-07, Codespaces):**
+
+| Package | Command | Result |
+|---|---|---|
+| `sdk` | `pnpm test` | **12 passed** |
+| `cli` | `pnpm test` | **30 passed** (`hash.test.ts` 18, `commands.test.ts` 12) |
+| `web` | `pnpm test` | **27 passed** (`ContractSpec` 10, `SafeLink` 12, `VerificationBadge` 5) |
+| `contracts/registry` | `cargo test` | **14 passed** (0 failed) |
+
+This is the first recorded run of the Rust suite since `fix/verify-actually-verifies`,
+which noted `cargo` was unavailable and its 3 new contract tests could not be executed.
+They now run and pass (`test_submit_rejects_wasm_hash_wrong_length`,
+`test_submit_rejects_wasm_hash_non_hex_chars`, `test_submit_accepts_valid_hex_hash`).
+The `cargo test` run was made before the profile move; a re-run afterwards is pending.
+
+**Environment findings (Codespaces, Stellar CLI 28.1.0):**
+- `stellar keys generate` no longer accepts `--global` (keys are stored globally by default). Use `stellar keys generate deployer --network testnet`
+- `stellar keys secret <name>` printed the secret key and worked for `STELLAR_SECRET_KEY`; `keys show` is not confirmed on v28
+- `cargo install --locked stellar-cli` fails on the pinned Rust 1.91.0 because stellar-cli 28.1.0 needs rustc 1.93.0 or newer. The prebuilt installer works and needs no toolchain change
+- The CLI has no `start` script. The README previously said `pnpm start verify ...`; the working invocation is `node dist/index.js ...` after a build
+- On a fresh clone `pnpm test:ts` fails for `cli` and `web` until `sdk` is built, because `@soroban-verify/sdk` resolves to `sdk/dist/index.js`. Run `pnpm build` (or `pnpm --filter @soroban-verify/sdk build`) first. After building, all three packages pass
+
+**Not yet verified:**
+- A clean-clone rebuild reproducing hash `5a051bb9...` (the project's central reproducibility claim)
+- `stellar-verify lookup --hash` and the web explorer against the new registry
+- A live duplicate `verify` rejection (covered by `test_submit_duplicate_returns_error` in the contract tests only)
+- Whether commit `c6a4f98...` has been pushed to the public repository; the record is only independently checkable once it is
+
+**Known doc follow-ups (not changed in this entry):**
+- `DEPLOY.md` still uses `stellar keys generate --global` and `stellar keys show`
+- `DEPLOY.md` Step 8 still calls `./cli/dist/index.js verify` without `--wasm`
+
+**Branch:** testnet-redeploy-2026-10-07 → main
+
+
+---
+
+## Branch: docs/readme-guide
+
+**What changed:**
+- Rewrote `README.md` as a step-by-step guide (Parts A to E): install and test, deploy a registry to testnet, submit and check a verification, browse the web explorer, and independently rebuild a record. Added a troubleshooting table and a "Current Testnet Deployment" section
+- Replaced the old "End-to-End Example", which used illustrative placeholder values (hash `6ddb28e0...`, commit `3a7f2d1c...`, ledger 54321), with a worked run using real values from the 2026-10-07 testnet deployment
+- Replaced the old "Getting Started" and "CLI Usage" sections with the guide and a new "CLI Reference" listing the actual flags, including the global `--rpc-url` and `--registry-id`, the `--wasm` and `--json` options, and the environment variables
+- Kept the "What is soroban-verify?", "How It Works", Stellar Expert comparison, "Trust Model & Limitations", "Build Verification Is Not Yet End-to-End", "Repository Structure", Contributing and License sections unchanged, apart from the three fixes below
+- Trust Model: the line saying anyone can confirm a claim "by rebuilding the source themselves (`stellar-verify check`)" now says to rebuild at the recorded commit and compare with the hash `check` reports, because `check` queries the registry and does not rebuild
+- Repository Structure: `verify.ts` described as the `verify` command (was `submit`); `Cargo.toml` described as workspace plus release profiles
+
+**Why:**
+The previous README described the system but could not be followed from a blank machine:
+it told readers to run `pnpm start` (no such script exists), omitted that the SDK must be
+built before the CLI and web tests, and did not mention that `cargo install stellar-cli`
+fails on the pinned Rust 1.91.0. Its example output was illustrative placeholder data,
+which is a poor fit for a verification project. Apart from the items listed under
+"Not yet verified", the guide uses commands that ran successfully in Codespaces on 2026-10-07.
+
+**Not yet verified:**
+- The steps for `lookup`, the web explorer (Part D), and the clean-clone rebuild (Part E) were written from the code and CLI source; they have not yet been run and their output recorded
+- No one other than the author has followed the guide from a blank environment
+
+**No code, contract, test or dependency changes in this entry.**
+
+**Branch:** docs/readme-guide → main
